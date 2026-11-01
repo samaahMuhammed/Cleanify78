@@ -424,7 +424,31 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
   function dayNumber(d) { return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5); }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function fmt(ms) { var t = Math.max(0, Math.floor(ms / 1000)); return pad(Math.floor(t / 60)) + ":" + pad(t % 60); }
-  function whoSpan(id) { return '<span>' + (id === uid ? "You" : "Roommate") + '</span>'; }
+  function myName() { return (scores && scores[uid] && scores[uid].name) || me.name || ""; }
+  function displayName(id) { return (scores && scores[id] && scores[id].name) || (id === uid ? "You" : "Roommate"); }
+  function nameOf(id) { return id === uid ? "You" : displayName(id); }
+  function initials(n) {
+    var w = String(n).trim().split(/\s+/).filter(Boolean);
+    if (!w.length) return "?";
+    return (w.length > 1 ? w[0][0] + w[w.length - 1][0] : w[0].slice(0, 2)).toUpperCase();
+  }
+  function whoSpan(id) { return '<span>' + esc(nameOf(id)) + '</span>'; }
+  function nameFormHtml(btnText, big) {
+    return '<form class="add stack" id="nameForm" novalidate>' +
+      '<label class="label" for="nameInput">Your name</label>' +
+      '<input id="nameInput" type="text" maxlength="20" placeholder="e.g. Samaah" value="' + esc(myName()) + '" autocomplete="given-name" style="width:100%;">' +
+      '<button class="btn primary' + (big ? ' large' : '') + '" type="submit">' + btnText + '</button></form>';
+  }
+  function nameCard() { return '<section class="card"><h2>Your name</h2><p class="small">Roommates see this on the board and in chat.</p>' + nameFormHtml("Save name") + '</section>'; }
+  function nameGateView() {
+    return '<section class="card" style="margin-top:1rem;"><h2>What should your roommates call you?</h2>' +
+      '<p class="small">Pick a name before you jump in. You can change it later in Settings.</p>' + nameFormHtml("Continue", true) + '</section>';
+  }
+  function setMyName(n) {
+    n = str(n, 20).trim();
+    me.name = n; saveMe();
+    if (scores && scores[uid]) { scores[uid].name = n; saveSharedDB(); }
+  }
   
   function curKey(rep) {
     if (rep === "daily") return dayKey(new Date());
@@ -751,6 +775,8 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       '<h1>Just One</h1>' +
       '<p class="tagline">Clean Home &middot; Clear Mind</p>' +
       '<div class="landing-box">' +
+        '<label class="label" for="onboardName" style="text-align:left;">Your name</label>' +
+        '<input id="onboardName" type="text" maxlength="20" placeholder="What should roommates call you?" value="' + esc(me.name || "") + '" autocomplete="given-name" style="padding:0.8rem; font-size:1.1rem; border:1px solid var(--line); border-radius:10px;">' +
         '<button class="btn primary large" data-act="create-home">Create Home</button>' +
         '<div style="display:flex; align-items:center; gap:0.5rem; color:var(--muted);"><hr style="flex:1; border-top:1px solid var(--line); border-bottom:0;">OR<hr style="flex:1; border-top:1px solid var(--line); border-bottom:0;"></div>' +
         '<form id="onboardJoinForm" style="display:flex; flex-direction:column; gap:0.5rem;">' +
@@ -811,7 +837,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       '</select></div>' +
       '<button class="btn primary" type="submit">Save Preferences</button></form></section>' +
       
-      syncCard() + '<section class="card"><h2>Food & Diet</h2>' +
+      nameCard() + syncCard() + '<section class="card"><h2>Food & Diet</h2>' +
       '<p class="small">Tell the app how you eat. Meal ideas and AI suggestions will follow it.</p>' +
       '<form class="add stack" id="dietForm" novalidate>' +
         '<label class="label" for="dietSelect">Dietary preference</label>' +
@@ -988,10 +1014,10 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
   function seenLabel(m) {
     var others = chatMembers().filter(function (k) { return k !== uid; });
     if (!others.length) return "";
-    var n = others.filter(function (k) { return (chatReads[k] || 0) >= (m.time || 0); }).length;
-    if (n === 0) return "\u2713 Sent";
-    if (n === others.length) return "\u2713\u2713 Seen by " + (others.length === 1 ? "your roommate" : "everyone");
-    return "\u2713\u2713 Seen by " + n + " of " + others.length;
+    var readers = others.filter(function (k) { return (chatReads[k] || 0) >= (m.time || 0); });
+    if (!readers.length) return "\u2713 Sent";
+    if (readers.length === others.length && others.length > 3) return "\u2713\u2713 Seen by everyone";
+    return "\u2713\u2713 Seen by " + readers.map(displayName).join(", ");
   }
 
   function chatView() {
@@ -1005,7 +1031,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
              '<span style="display:inline-block; padding:0.5rem 0.8rem; border-radius:12px; max-width:80%; word-break:break-word; text-align:left; ' +
              (isMe ? 'background:var(--accent); color:var(--accent-ink);' : 'background:var(--soft); color:var(--ink);') +
              '">' + esc(m.text) + '</span>' +
-             '<div style="font-size:0.7rem; color:var(--muted); margin-top:0.2rem;">' + (isMe ? 'You' : 'Roommate') + ' • ' + time + (isMe ? ' • <span style="color:var(--accent);">' + esc(seenLabel(m)) + '</span>' : '') + '</div>' +
+             '<div style="font-size:0.7rem; color:var(--muted); margin-top:0.2rem;">' + esc(nameOf(m.uid)) + ' • ' + time + (isMe ? ' • <span style="color:var(--accent);">' + esc(seenLabel(m)) + '</span>' : '') + '</div>' +
              '</div>';
     }).join("");
 
@@ -1033,7 +1059,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     
     if (reward && reward.month < curMonthStr && reward.status === 'active') {
       var st = getRewardStats(reward.month);
-      var winnerText = st.leaders.includes(uid) ? "You" : "Roommate";
+      var winnerText = st.leaders.includes(uid) ? "You" : displayName(st.leaders[0]);
       if (st.leaders.length > 1) winnerText = "It's a tie!";
       if (st.max <= 0) winnerText = "nobody this time";
       return '<div class="card reward-celeb">' +
@@ -1069,7 +1095,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     var stCur = getRewardStats(curMonthStr);
     var leaderText = "No points yet";
     if (stCur.max > 0) {
-      leaderText = (stCur.leaders.includes(uid) ? "You" : "Roommate") + " — " + stCur.max + " pts";
+      leaderText = (stCur.leaders.includes(uid) ? "You" : displayName(stCur.leaders[0])) + " — " + stCur.max + " pts";
     }
     var lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
     var daysLeft = lastDay - d.getDate();
@@ -1098,8 +1124,8 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     var lis = rows.map(function (r, i) {
       if (r.displayScore !== prev) { rank = i + 1; prev = r.displayScore; }
       var rankClass = rank === 1 ? "rank-1" : rank === 2 ? "rank-2" : rank === 3 ? "rank-3" : "rank-other";
-      var nameText = r.id === uid ? "You" : "Roommate";
-      var avText = r.id === uid ? "ME" : "RM";
+      var nameText = esc(r.id === uid ? (myName() ? myName() + " (you)" : "You") : displayName(r.id)) + (r.id === uid ? ' <button class="btn quiet small" data-act="edit-name" style="margin-left:0.4rem;padding:0.1rem 0.5rem;" aria-label="Edit my name">✎ Edit</button>' : "");
+      var avText = esc(initials(scores && scores[r.id] && scores[r.id].name ? scores[r.id].name : (r.id === uid ? "Me" : "Roommate")));
       
       return '<li class="' + rankClass + '">' +
         '<div class="board-av">' + avText + '</div>' +
@@ -1251,7 +1277,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     return html;
   }
 
-  var KEEP_IDS = ["dietSelect", "dietNotes", "recipeName", "recipeIng", "recipeNotes", "choreRep", "sharedEffort", "choreInput", "sharedInput", "ingInput", "shopInput", "chatInput", "onboardJoinInput", "themeSelect", "kitchenSelect", "apiKeyInput", "joinKitchenInput", "rewardToggle", "rewPrize", "rewTarget", "syncRepo", "syncToken", "syncUid", "aiProvider", "aiModel", "aiBase"];
+  var KEEP_IDS = ["dietSelect", "dietNotes", "recipeName", "recipeIng", "recipeNotes", "choreRep", "sharedEffort", "choreInput", "sharedInput", "ingInput", "shopInput", "chatInput", "onboardJoinInput", "themeSelect", "kitchenSelect", "apiKeyInput", "joinKitchenInput", "rewardToggle", "rewPrize", "rewTarget", "syncRepo", "syncToken", "syncUid", "aiProvider", "aiModel", "aiBase", "onboardName", "nameInput"];
 
 
   function render() {
@@ -1272,7 +1298,9 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       header.style.display = "block";
       var today = dayKey(new Date()), body;
       
-      if (tab === "house") { body = showChat ? safeRender(chatView) : safeRender(houseView); }
+      var needName = !(scores && scores[uid] && scores[uid].name);
+      if (needName) { body = safeRender(nameGateView); }
+      else if (tab === "house") { body = showChat ? safeRender(chatView) : safeRender(houseView); }
       else if (tab === "board") body = safeRender(boardView);
       else if (tab === "kitchen") body = safeRender(kitchenView);
       else if (tab === "settings") body = safeRender(settingsView);
@@ -1281,7 +1309,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
         else { body = safeRender(timerBanner) + safeRender(profileCard) + safeRender(function(){return taskCard(today)}) + safeRender(choresCard) + safeRender(timeLogView); }
       }
       
-      document.getElementById("app").innerHTML = tabsBar() + (flashMsg ? '<p class="banner" role="status">' + esc(flashMsg) + '</p>' : "") + body;
+      document.getElementById("app").innerHTML = (needName ? "" : tabsBar()) + (flashMsg ? '<p class="banner" role="status">' + esc(flashMsg) + '</p>' : "") + body;
       if (tab === "house" && showChat) { var cb = document.getElementById("chatBox"); if (cb) cb.scrollTop = cb.scrollHeight; markChatRead(); }
     }
 
@@ -1456,9 +1484,13 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     if (act === "toggle-sync-setup") { showSyncSetup = !showSyncSetup; render(); return; }
     if (act === "sync-now") { syncAll(true); return; }
     if (act === "sync-off") { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(META_KEY); clearTimeout(syncTimer); sync = null; syncMeta = {}; syncState = { status: "off", msg: "", last: 0 }; flash("Sync turned off. Your data stays on this device."); return; }
+    if (act === "edit-name") { tab = "settings"; showChat = false; showStats = false; render(); setTimeout(function () { var ni = document.getElementById("nameInput"); if (ni) { ni.focus(); ni.select(); } }, 50); return; }
     if (act === "create-home") {
+      var nmC = str(document.getElementById("onboardName") && document.getElementById("onboardName").value, 20).trim();
+      if (!nmC) { flash("Please enter your name first."); return; }
+      me.name = nmC; saveMe();
       scores = { _meta: { inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(), kitchenMode: "shared", rewardsEnabled: false } };
-      scores[uid] = { joined: Date.now(), entries: {} }; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
+      scores[uid] = { joined: Date.now(), entries: {}, name: nmC }; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
       saveSharedDB(); flash("Home created! Your invite code is on the Board tab."); render(); return;
     }
     if (act === "leave-home") {
@@ -1595,9 +1627,15 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
         saveJson("ai_config", cfg); flash(aiName() + " key saved.");
       } else { localStorage.removeItem("ai_config"); flash("AI key cleared."); }
       render();
+    } else if (fid === "nameForm") {
+      var nmV = str(document.getElementById("nameInput").value, 20).trim();
+      if (!nmV) { flash("Please enter a name."); return; }
+      setMyName(nmV); flash("Nice to meet you, " + nmV + "!"); render();
     } else if (fid === "onboardJoinForm") {
       var codeIn = document.getElementById("onboardJoinInput").value.trim().toUpperCase();
-      if (scores && scores._meta && codeIn === scores._meta.inviteCode) { scores[uid] = { joined: Date.now(), entries: {} }; saveSharedDB(); flash("Joined successfully!"); render(); } 
+      var nmJ = str(document.getElementById("onboardName") && document.getElementById("onboardName").value, 20).trim();
+      if (!nmJ) { flash("Please enter your name first."); return; }
+      if (scores && scores._meta && codeIn === scores._meta.inviteCode) { me.name = nmJ; saveMe(); scores[uid] = { joined: Date.now(), entries: {}, name: nmJ }; saveSharedDB(); flash("Joined successfully!"); render(); } 
       else { flash("Invalid invite code or no home exists on this device yet."); }
     } else if (fid === "chatForm") {
       var ci = document.getElementById("chatInput"); var txt = ci.value.trim(); if (!txt) return;
