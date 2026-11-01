@@ -706,12 +706,19 @@ img, svg, video { max-width: 100%; }
     return { sha: j.content && j.content.sha };
   }
 
-  /* ---------- HOME SYNC (invite link, no accounts) ----------
-     The house data is AES-GCM encrypted on this device, then stored as one blob on a free JSON host.
-     The invite link holds the blob address + the key after a "#", which browsers never send to any server. */
-  var RELAY_KEY = "one-small-thing-relay", RELAY_BASE = "https://jsonblob.com/api/jsonBlob";
+  /* ---------- HOME SYNC (invite link, no accounts for roommates) ----------
+     House data is AES-GCM encrypted on this device, then stored in one record of a Firebase Realtime Database.
+     The invite link holds the record id + the key + the database address after a "#", which browsers never send to any server. */
+  var RELAY_KEY = "one-small-thing-relay", DB_URL_KEY = "one-small-thing-db";
   var relay = loadJson(RELAY_KEY), relayErr = "";
+  if (relay && !relay.host) { relay = null; try { localStorage.removeItem(RELAY_KEY); } catch (e) {} }
   function syncOn() { return !!(sync || relay); }
+  function dbUrl() { try { return localStorage.getItem(DB_URL_KEY) || ""; } catch (e) { return ""; } }
+  function cleanDb(t) {
+    t = String(t || "").trim().replace(/\/+$/, "").replace(/\.json$/i, "");
+    if (t && !/^https?:\/\//i.test(t)) t = "https://" + t;
+    return /^https:\/\/[\w.-]+\.[a-z]{2,}(:\d+)?$/i.test(t) ? t : "";
+  }
   function hashOf(o) { var t = canon(o), h = 5381; for (var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return "h" + h.toString(36) + "." + t.length; }
   function b64u(bytes) { var bin = ""; for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
   function unb64u(t) { t = t.replace(/-/g, "+").replace(/_/g, "/"); while (t.length % 4) t += "="; var bin = atob(t), out = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
@@ -728,51 +735,58 @@ img, svg, video { max-width: 100%; }
       return JSON.parse(new TextDecoder().decode(pt));
     } catch (e) { throw new Error("Could not unlock this home. Check the invite link."); }
   }
+  function rUrl(host, id) { return host.replace(/\/+$/, "") + "/homes/" + encodeURIComponent(id) + ".json"; }
   async function rFetch(url, opts) {
     var res;
-    try { res = await fetch(url, opts); } catch (e) { throw new Error("Can't reach the sync service. Check your connection."); }
+    try { res = await fetch(url, opts); } catch (e) { throw new Error("Can't reach the database. Check the address and your connection."); }
+    if (res.status === 401 || res.status === 403) throw new Error("The database refused access. Check the Rules tab in Firebase (see setup steps).");
+    if (!res.ok) throw new Error("The database had a problem (" + res.status + ").");
     return res;
   }
-  async function relayCreate(obj, key) {
-    var res = await rFetch(RELAY_BASE, { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(await rEnc(obj, key)) });
-    if (!res.ok) throw new Error("The sync service refused (" + res.status + ").");
-    var loc = res.headers.get("Location") || res.headers.get("X-jsonblob") || "";
-    var id = loc.split("/").filter(Boolean).pop();
-    if (!id) throw new Error("The sync service did not return a home address.");
+  async function relayCreate(obj, key, host) {
+    var id = newRelayKey();
+    await rFetch(rUrl(host, id), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(await rEnc(obj, key)) });
     return id;
   }
   async function relayGet() {
-    var res = await rFetch(RELAY_BASE + "/" + encodeURIComponent(relay.id) + "?_=" + Date.now(), { headers: { "Accept": "application/json" }, cache: "no-store" });
-    if (res.status === 404) throw new Error("This home's cloud copy was not found.");
-    if (!res.ok) throw new Error("The sync service had a problem (" + res.status + ").");
-    var data = await rDec(await res.json(), relay.key);
+    var res = await rFetch(rUrl(relay.host, relay.id) + "?_=" + Date.now(), { cache: "no-store" });
+    var pack = await res.json();
+    if (!pack || !pack.ct) throw new Error("This home's cloud copy was not found.");
+    var data = await rDec(pack, relay.key);
     return { sha: hashOf(data), data: data };
   }
   async function relayPut(obj) {
-    var res = await rFetch(RELAY_BASE + "/" + encodeURIComponent(relay.id), { method: "PUT", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(await rEnc(obj, relay.key)) });
-    if (!res.ok) throw new Error("The sync service had a problem (" + res.status + ").");
+    await rFetch(rUrl(relay.host, relay.id), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(await rEnc(obj, relay.key)) });
     return { sha: hashOf(obj) };
   }
   async function startRelay() {
+    relayErr = "";
     try {
-      var key = newRelayKey(), data = snap("shared"), id = await relayCreate(data, key);
-      relay = { id: id, key: key }; saveJson(RELAY_KEY, relay);
+      var host = dbUrl();
+      if (!host) throw new Error("Add your database address in Settings → Home sync first.");
+      var key = newRelayKey(), data = snap("shared"), id = await relayCreate(data, key, host);
+      relay = { id: id, key: key, host: host }; saveJson(RELAY_KEY, relay);
       syncMeta.sharedRelay = { sha: hashOf(data), base: clone(data) }; saveMeta();
       syncState = { status: "ok", msg: "", last: Date.now() };
       return true;
-    } catch (e) { relayErr = str(e && e.message, 160); return false; }
+    } catch (e) { relayErr = str(e && e.message, 200); return false; }
   }
   function parseInvite(t) {
     t = String(t || "").trim();
     var m = t.match(/join=([\w-]+)\.([\w-]{16,})/) || t.match(/^([\w-]+)\.([\w-]{16,})$/);
-    return m ? { id: m[1], key: m[2] } : null;
+    if (!m) return null;
+    var d = t.match(/[&?#]db=([^&\s]+)/), host = "";
+    if (d) { try { host = cleanDb(decodeURIComponent(d[1])); } catch (e) {} }
+    return { id: m[1], key: m[2], host: host || dbUrl() };
   }
-  function inviteLink() { return relay ? location.href.split("#")[0] + "#join=" + relay.id + "." + relay.key : ""; }
+  function inviteLink() { return relay ? location.href.split("#")[0] + "#join=" + relay.id + "." + relay.key + "&db=" + encodeURIComponent(relay.host) : ""; }
   function inviteHash() { try { return (location.hash || "").indexOf("join=") >= 0 ? location.hash.replace(/^#/, "") : ""; } catch (e) { return ""; } }
   function copyText(t) { return (navigator.clipboard && navigator.clipboard.writeText) ? navigator.clipboard.writeText(t).then(function () { return true; }, function () { return false; }) : Promise.resolve(false); }
   async function joinRelay(inv, name) {
-    var prev = relay; relay = { id: inv.id, key: inv.key };
+    var prev = relay;
     try {
+      if (!inv.host) throw new Error("This invite has no database address. Ask for a fresh invite link.");
+      relay = { id: inv.id, key: inv.key, host: inv.host };
       var r = await relayGet(), d = normShared(r.data);
       if (!d.scores || !d.scores._meta) throw new Error("That invite doesn't look like a home.");
       applySnap("shared", d);
@@ -785,11 +799,11 @@ img, svg, video { max-width: 100%; }
       try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
       flash("Joined! Welcome, " + name + ".");
       syncAll(true);
-    } catch (e) { relay = prev; flash(str(e && e.message, 160)); }
+    } catch (e) { relay = prev; flash(str(e && e.message, 200)); }
   }
   function inviteHtml() {
     if (relay) return '<p class="small" style="margin-bottom:1.5rem;">Invite roommates: <button class="btn small" data-act="copy-invite">Copy invite link</button></p>';
-    return '<p class="small" style="margin-bottom:1.5rem;">Roommates on other phones can\'t join yet. <button class="btn small" data-act="relay-on">Turn on home sync</button></p>';
+    return '<p class="small" style="margin-bottom:1.5rem;">Roommates on other phones can\'t join yet. <button class="btn small" data-act="relay-on">Set up home sync</button></p>';
   }
   function homeSyncCard() {
     if (!(scores && scores._meta)) return "";
@@ -800,9 +814,25 @@ img, svg, video { max-width: 100%; }
         '<div class="row"><button class="btn primary small" data-act="copy-invite">Copy invite link</button><button class="btn quiet small" data-act="sync-now">Sync now</button>' +
         '<button class="btn quiet small" data-act="relay-off">' + (confirmAct === "relay-off" ? "Sure?" : "Turn off") + '</button></div></section>';
     }
-    return '<section class="card"><h2>Home sync</h2><p class="small">Let roommates join from their own phones with a link. No accounts or setup. Your home is encrypted before it is uploaded, and only people with the invite link can read it.</p>' +
-      (relayErr ? '<p class="say">' + esc(relayErr) + '</p>' : '') +
-      '<button class="btn primary" data-act="relay-on">Turn on home sync</button></section>';
+    var host = dbUrl();
+    var err = relayErr ? '<p class="say">' + esc(relayErr) + '</p>' : '';
+    if (host) {
+      return '<section class="card"><h2>Home sync</h2><p class="small">Let roommates join from their own phones with a link. No accounts or setup for them. Your home is encrypted before it is uploaded.</p>' + err +
+        '<p class="small">Database: <strong>' + esc(host) + '</strong> <button class="btn quiet small" data-act="db-change" type="button">Change</button></p>' +
+        '<button class="btn primary" data-act="relay-on">Turn on home sync</button></section>';
+    }
+    return '<section class="card"><h2>Home sync: one-time setup</h2>' +
+      '<p class="small">This takes about 5 minutes, once, on one device. Roommates never do this.</p>' +
+      '<ol class="small" style="margin:0 0 0 1.1rem; padding:0; display:flex; flex-direction:column; gap:0.35rem;">' +
+      '<li>Open <strong>console.firebase.google.com</strong>, sign in with Google, press <strong>Create a project</strong>, name it anything, turn Google Analytics off, press Create.</li>' +
+      '<li>Left menu: <strong>Build → Realtime Database → Create Database</strong>. Pick any location, choose <strong>locked mode</strong>, press Enable.</li>' +
+      '<li>Open the <strong>Rules</strong> tab, replace everything with the text below, press <strong>Publish</strong>.</li>' +
+      '</ol>' +
+      '<pre style="margin:0; padding:0.6rem 0.7rem; background:var(--bg); border:1px solid var(--line); border-radius:10px; font-size:0.8rem; overflow-x:auto; user-select:all;">{ "rules": { "homes": { "$id": { ".read": true, ".write": true } } } }</pre>' +
+      '<ol class="small" start="4" style="margin:0 0 0 1.1rem; padding:0; display:flex; flex-direction:column; gap:0.35rem;">' +
+      '<li>Open the <strong>Data</strong> tab and copy the web address at the top. It looks like <em>https://something-default-rtdb.firebaseio.com</em>.</li>' +
+      '<li>Paste it below and save.</li></ol>' + err +
+      '<form class="add stack" id="dbForm" novalidate><input id="dbInput" type="text" placeholder="https://your-project-default-rtdb.firebaseio.com" autocomplete="off" style="width:100%;"><button class="btn primary" type="submit">Save database address</button></form></section>';
   }
 
   async function syncFile(kind) {
@@ -1429,7 +1459,7 @@ img, svg, video { max-width: 100%; }
     return html;
   }
 
-  var KEEP_IDS = ["dietSelect", "dietNotes", "recipeName", "recipeIng", "recipeNotes", "choreRep", "sharedEffort", "choreInput", "sharedInput", "ingInput", "shopInput", "chatInput", "onboardJoinInput", "themeSelect", "kitchenSelect", "apiKeyInput", "joinKitchenInput", "rewardToggle", "rewPrize", "rewTarget", "syncRepo", "syncToken", "syncUid", "aiProvider", "aiModel", "aiBase", "onboardName", "nameInput"];
+  var KEEP_IDS = ["dietSelect", "dietNotes", "recipeName", "recipeIng", "recipeNotes", "choreRep", "sharedEffort", "choreInput", "sharedInput", "ingInput", "shopInput", "chatInput", "onboardJoinInput", "themeSelect", "kitchenSelect", "apiKeyInput", "joinKitchenInput", "rewardToggle", "rewPrize", "rewTarget", "syncRepo", "syncToken", "syncUid", "aiProvider", "aiModel", "aiBase", "onboardName", "nameInput", "dbInput"];
 
 
   function render() {
@@ -1638,7 +1668,11 @@ img, svg, video { max-width: 100%; }
     if (act === "sync-off") { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(META_KEY); clearTimeout(syncTimer); sync = null; syncMeta = {}; syncState = { status: "off", msg: "", last: 0 }; flash("Sync turned off. Your data stays on this device."); return; }
     if (act === "edit-name") { tab = "settings"; showChat = false; showStats = false; render(); setTimeout(function () { var ni = document.getElementById("nameInput"); if (ni) { ni.focus(); ni.select(); } }, 50); return; }
     if (act === "copy-invite") { var lk = inviteLink(); copyText(lk).then(function (ok) { if (ok) flash("Invite link copied. Send it to your roommates."); else window.prompt("Copy this invite link:", lk); }); return; }
-    if (act === "relay-on") { flash("Turning on home sync…"); startRelay().then(function (ok) { flash(ok ? "Home sync is on. Copy the invite link from the Board tab." : "Could not turn on home sync: " + relayErr); }); return; }
+    if (act === "db-change") { try { localStorage.removeItem(DB_URL_KEY); } catch (e) {} relayErr = ""; render(); return; }
+    if (act === "relay-on") {
+      if (!dbUrl()) { tab = "settings"; showChat = false; showStats = false; flash("First add your database address below (one-time setup)."); return; }
+      flash("Turning on home sync…"); startRelay().then(function (ok) { flash(ok ? "Home sync is on. Copy the invite link from the Board tab." : "Could not turn on home sync: " + relayErr); }); return;
+    }
     if (act === "relay-off") {
       if (confirmAct !== "relay-off") { confirmAct = "relay-off"; render(); return; }
       confirmAct = ""; localStorage.removeItem(RELAY_KEY); relay = null; delete syncMeta.sharedRelay; saveMeta();
@@ -1651,7 +1685,7 @@ img, svg, video { max-width: 100%; }
       me.name = nmC; saveMe();
       scores = { _meta: { inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(), kitchenMode: "shared", rewardsEnabled: false } };
       scores[uid] = { joined: Date.now(), entries: {}, name: nmC }; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
-      saveSharedDB(); flash("Creating your home…"); startRelay().then(function (ok) { flash(ok ? "Home created! Copy the invite link from the Board tab and send it to your roommates." : "Home created on this device only. Turn on home sync in Settings to invite roommates. (" + relayErr + ")"); }); return;
+      saveSharedDB(); flash("Creating your home…"); startRelay().then(function (ok) { flash(ok ? "Home created! Copy the invite link from the Board tab and send it to your roommates." : "Home created on this device only. To invite roommates, finish the one-time setup in Settings → Home sync. (" + relayErr + ")"); }); return;
     }
     if (act === "leave-home") {
       if (confirmAct !== "leave-home") { confirmAct = "leave-home"; render(); return; }
@@ -1787,6 +1821,11 @@ img, svg, video { max-width: 100%; }
         saveJson("ai_config", cfg); flash(aiName() + " key saved.");
       } else { localStorage.removeItem("ai_config"); flash("AI key cleared."); }
       render();
+    } else if (fid === "dbForm") {
+      var dbv = cleanDb(document.getElementById("dbInput").value);
+      if (!dbv) { flash("That doesn't look like a database address. It should start with https://"); return; }
+      try { localStorage.setItem(DB_URL_KEY, dbv); } catch (e) {}
+      relayErr = ""; flash("Saved. Now press Turn on home sync.");
     } else if (fid === "nameForm") {
       var nmV = str(document.getElementById("nameInput").value, 20).trim();
       if (!nmV) { flash("Please enter a name."); return; }
