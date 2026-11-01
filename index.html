@@ -374,7 +374,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     var p = dietPref();
     if (p === "vegetarian" || p === "vegan" || p === "pescatarian") return "Showing built-in ideas that fit your diet.";
     if (p === "halal") return "Use halal-certified meat.";
-    if (p !== "none") return "Built-in ideas are not checked for your diet. Gemini (optional) can tailor ideas to you.";
+    if (p !== "none") return "Built-in ideas are not checked for your diet. AI (optional) can tailor ideas to you.";
     return "";
   }
   function getKitchenId() {
@@ -766,7 +766,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
   }
 
   function settingsView() {
-    var key = localStorage.getItem("gemini_api_key") || "";
+    var aiC = aiCfg(), key = aiC.key || "";
     var t = me.theme || "auto";
     var rewardsOn = scores && scores._meta ? scores._meta.rewardsEnabled : false;
     var km = me.kitchenMode || "house";
@@ -810,7 +810,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       '<button class="btn primary" type="submit">Save Preferences</button></form></section>' +
       
       syncCard() + '<section class="card"><h2>Food & Diet</h2>' +
-      '<p class="small">Tell the app how you eat. Meal ideas and Gemini suggestions will follow it.</p>' +
+      '<p class="small">Tell the app how you eat. Meal ideas and AI suggestions will follow it.</p>' +
       '<form class="add stack" id="dietForm" novalidate>' +
         '<label class="label" for="dietSelect">Dietary preference</label>' +
         '<select id="dietSelect" style="width:100%;">' + DIETS.map(function (d) { return '<option value="' + d[0] + '"' + (dietPref() === d[0] ? " selected" : "") + '>' + d[1] + '</option>'; }).join("") + '</select>' +
@@ -828,9 +828,13 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       '</select>' + groupUi + '</section>' +
 
       '<section class="card"><h2>Smart Kitchen Helper (Optional)</h2>' +
-      '<p class="small">Want a little extra help in the kitchen? Add a free Gemini key and the app can suggest meals from whatever you have on hand, matched to the way you eat. Everything else works great without it, and your key stays on this device.</p>' +
-      '<form class="add" id="apiForm"><input id="apiKeyInput" type="password" placeholder="AIzaSy... (optional key)" value="' + esc(key) + '" autocomplete="off">' +
-      '<button class="btn" type="submit">Save Key</button>' +
+      '<p class="small">Want extra help in the kitchen? Add a key from Claude, Gemini, ChatGPT, OpenRouter, Groq, or any OpenAI-compatible service and the app can suggest meals from what you have on hand, matched to the way you eat. Everything else works without it. Your key stays on this device only and is never synced.</p>' +
+      '<form class="add stack" id="apiForm" novalidate>' +
+      '<label class="label" for="aiProvider">Service</label><select id="aiProvider" style="width:100%;">' + '<option value="auto"'+((aiC.provider||'auto')==='auto'?' selected':'')+'>Auto-detect from my key</option>' + '<option value="gemini"'+((aiC.provider||'auto')==='gemini'?' selected':'')+'>Google Gemini</option>' + '<option value="claude"'+((aiC.provider||'auto')==='claude'?' selected':'')+'>Claude (Anthropic)</option>' + '<option value="openai"'+((aiC.provider||'auto')==='openai'?' selected':'')+'>ChatGPT (OpenAI)</option>' + '<option value="openrouter"'+((aiC.provider||'auto')==='openrouter'?' selected':'')+'>OpenRouter</option>' + '<option value="groq"'+((aiC.provider||'auto')==='groq'?' selected':'')+'>Groq</option>' + '<option value="custom"'+((aiC.provider||'auto')==='custom'?' selected':'')+'>Other (OpenAI-compatible)</option>' + '</select>' +
+      '<label class="label" for="apiKeyInput">API key</label><input id="apiKeyInput" type="password" placeholder="Paste your key" value="' + esc(key) + '" autocomplete="off" style="width:100%;">' +
+      '<label class="label" for="aiModel">Model (optional)</label><input id="aiModel" type="text" placeholder="Leave blank for a sensible default" value="' + esc(aiC.model || '') + '" autocomplete="off" style="width:100%;">' +
+      '<label class="label" for="aiBase">Base URL (only for Other)</label><input id="aiBase" type="text" placeholder="https://your-service.com/v1" value="' + esc(aiC.baseUrl || '') + '" autocomplete="off" style="width:100%;">' +
+      '<button class="btn" type="submit">Save</button>' +
       (key ? '<button class="btn quiet small" data-act="api-clear" type="button">Remove Key</button>' : "") +
       '</form>' +
       '<div style="background:var(--soft); border-radius:10px; padding:0.85rem; margin-top:0.5rem;">' +
@@ -1136,7 +1140,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       return '<button class="chip" data-act="cook-kind" data-k="' + k[0] + '" aria-pressed="' + (cookKind === k[0]) + '">' + k[1] + '</button>';
     }).join("");
     var idea = nudge.text ? '<p class="say">' + esc(nudge.text) + '</p>' : '<div class="idea"><p class="big">' + esc(c[0]) + '</p><p class="note">' + esc(c[1]) + '. About ' + c[2] + ' min.</p></div>';
-    var ask = '<button class="btn" data-act="ask"' + (nudge.busy ? " disabled" : "") + '>' + (nudge.busy ? "Thinking..." : "Ask Gemini for a recipe") + '</button>';
+    var ask = '<button class="btn" data-act="ask"' + (nudge.busy ? " disabled" : "") + '>' + (nudge.busy ? "Thinking..." : "Ask " + aiName() + " for a recipe") + '</button>';
     return '<p class="label">Or pick an idea</p><div class="chips" role="group">' + chips + '</div>' + idea +
       '<div class="row"><button class="btn" data-act="cook-next">Another idea</button>' + ask + '</div>' + (dietNote() ? '<p class="small">' + esc(dietNote()) + '</p>' : "");
   }
@@ -1162,8 +1166,8 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     }
     if (ai.err) html += '<p class="say">' + esc(ai.err) + '</p>';
     if (ai.result) {
-      if (ai.result.fromMyRecipes && ai.result.fromMyRecipes.length) html += '<p class="label">Gemini matched from your recipes</p><div class="found">' + ai.result.fromMyRecipes.map(function (x) { return '<div class="item"><strong>' + esc(x.name) + '</strong><span class="small">' + (x.missing && x.missing.length ? 'Missing: ' + esc(x.missing.join(", ")) : 'You have everything.') + '</span></div>'; }).join("") + '</div>';
-      if (ai.result.ideas && ai.result.ideas.length) html += '<p class="label">New ideas from Gemini</p><div class="found">' + ai.result.ideas.map(function (x, i) { return '<div class="item"><strong>' + esc(x.name) + '</strong><span class="small">' + esc((x.ingredients||[]).join(", ")) + '</span><p class="notes">' + esc(x.method) + '</p><div class="row"><button class="btn small" data-act="ai-save" data-i="' + i + '"' + (x.saved ? " disabled" : "") + '>' + (x.saved ? "Saved" : "Save recipe") + '</button><button class="btn small quiet" data-act="ai-shop" data-i="' + i + '">Add to shopping list</button></div></div>'; }).join("") + '</div>';
+      if (ai.result.fromMyRecipes && ai.result.fromMyRecipes.length) html += '<p class="label">AI matched from your recipes</p><div class="found">' + ai.result.fromMyRecipes.map(function (x) { return '<div class="item"><strong>' + esc(x.name) + '</strong><span class="small">' + (x.missing && x.missing.length ? 'Missing: ' + esc(x.missing.join(", ")) : 'You have everything.') + '</span></div>'; }).join("") + '</div>';
+      if (ai.result.ideas && ai.result.ideas.length) html += '<p class="label">New ideas from AI</p><div class="found">' + ai.result.ideas.map(function (x, i) { return '<div class="item"><strong>' + esc(x.name) + '</strong><span class="small">' + esc((x.ingredients||[]).join(", ")) + '</span><p class="notes">' + esc(x.method) + '</p><div class="row"><button class="btn small" data-act="ai-save" data-i="' + i + '"' + (x.saved ? " disabled" : "") + '>' + (x.saved ? "Saved" : "Save recipe") + '</button><button class="btn small quiet" data-act="ai-shop" data-i="' + i + '">Add to shopping list</button></div></div>'; }).join("") + '</div>';
     }
     return html;
   }
@@ -1225,7 +1229,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     return html;
   }
 
-  var KEEP_IDS = ["dietSelect", "dietNotes", "recipeName", "recipeIng", "recipeNotes", "choreRep", "sharedEffort", "choreInput", "sharedInput", "ingInput", "shopInput", "chatInput", "onboardJoinInput", "themeSelect", "kitchenSelect", "apiKeyInput", "joinKitchenInput", "rewardToggle", "rewPrize", "rewTarget", "syncRepo", "syncToken", "syncUid"];
+  var KEEP_IDS = ["dietSelect", "dietNotes", "recipeName", "recipeIng", "recipeNotes", "choreRep", "sharedEffort", "choreInput", "sharedInput", "ingInput", "shopInput", "chatInput", "onboardJoinInput", "themeSelect", "kitchenSelect", "apiKeyInput", "joinKitchenInput", "rewardToggle", "rewPrize", "rewTarget", "syncRepo", "syncToken", "syncUid", "aiProvider", "aiModel", "aiBase"];
 
 
   function render() {
@@ -1273,59 +1277,124 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     if (c && timer) c.textContent = fmt(Date.now() - timer.start);
   }
 
-  var GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
-  async function callGemini(prompt, expectJson) {
-    var key = localStorage.getItem("gemini_api_key"); if (!key) throw new Error("no_key");
-    var body = { contents: [{ parts: [{ text: prompt }] }] };
-    if (expectJson) body.generationConfig = { responseMimeType: "application/json" };
-    var lastErr = null;
-    for (var i = 0; i < GEMINI_MODELS.length; i++) {
-      var res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODELS[i] + ":generateContent", {
-        method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body)
-      });
-      var data = await res.json();
-      if (data.error) { lastErr = new Error(data.error.message || "Gemini error"); if (res.status === 404) continue; throw lastErr; }
-      var cand = data.candidates && data.candidates[0], parts = cand && cand.content && cand.content.parts;
-      if (!parts || !parts.length) throw new Error("Gemini sent no answer");
-      var text = parts.map(function (p) { return p.text || ""; }).join("");
-      if (!expectJson) return text;
-      return JSON.parse(text.replace(/^\s*```(?:json)?/i, "").replace(/```\s*$/, "").trim());
+  var AI_PRESETS = {
+    gemini: { label: "Gemini", model: "gemini-2.5-flash" },
+    claude: { label: "Claude", model: "claude-haiku-5-5" },
+    openai: { label: "ChatGPT", base: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+    openrouter: { label: "OpenRouter", base: "https://openrouter.ai/api/v1", model: "openrouter/auto" },
+    groq: { label: "Groq", base: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" },
+    custom: { label: "AI" }
+  };
+  function aiCfg() {
+    var c = loadJson("ai_config");
+    if (c && c.key) return c;
+    var legacy = localStorage.getItem("gemini_api_key");
+    return legacy ? { provider: "gemini", key: legacy } : (c || {});
+  }
+  function aiKey() { return aiCfg().key || ""; }
+  function aiProvider(c) {
+    if (c.provider && c.provider !== "auto") return c.provider;
+    var k = c.key || "";
+    if (c.baseUrl) return "custom";
+    if (/^AIza/.test(k)) return "gemini";
+    if (/^sk-ant-/.test(k)) return "claude";
+    if (/^sk-or-/.test(k)) return "openrouter";
+    if (/^gsk_/.test(k)) return "groq";
+    if (/^sk-/.test(k)) return "openai";
+    return "gemini";
+  }
+  function aiName() { var c = aiCfg(); return (AI_PRESETS[aiProvider(c)] || AI_PRESETS.custom).label; }
+  function aiErr(res, data, name) {
+    var m = data && data.error && (data.error.message || (typeof data.error === "string" ? data.error : "")) || (data && data.message) || "";
+    if (res.status === 401 || res.status === 403) m = "key rejected" + (m ? " (" + m + ")" : "");
+    return new Error(m || (name + " error " + res.status));
+  }
+  async function aiFetch(url, opts, name) {
+    var res = await fetch(url, opts), data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok || (data && data.error)) throw aiErr(res, data, name);
+    return data || {};
+  }
+  function aiParse(text) {
+    text = String(text).replace(/^\s*```(?:json)?/i, "").replace(/```\s*$/, "").trim();
+    try { return JSON.parse(text); } catch (e) {}
+    var i = text.indexOf("{"), j = text.lastIndexOf("}");
+    if (i >= 0 && j > i) return JSON.parse(text.slice(i, j + 1));
+    throw new Error("the answer was not in the expected format");
+  }
+  async function callAI(prompt, expectJson) {
+    var c = aiCfg(); if (!c.key) throw new Error("no_key");
+    var prov = aiProvider(c), pre = AI_PRESETS[prov] || AI_PRESETS.custom, name = pre.label, text = "";
+    var model = (c.model || pre.model || "").trim();
+    if (prov === "gemini") {
+      var body = { contents: [{ parts: [{ text: prompt }] }] };
+      if (expectJson) body.generationConfig = { responseMimeType: "application/json" };
+      var models = c.model ? [c.model] : [pre.model, "gemini-2.0-flash"], lastErr = null;
+      for (var i = 0; i < models.length; i++) {
+        try {
+          var d = await aiFetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(models[i]) + ":generateContent",
+            { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": c.key }, body: JSON.stringify(body) }, name);
+          var cand = d.candidates && d.candidates[0], parts = cand && cand.content && cand.content.parts;
+          if (!parts || !parts.length) throw new Error("Gemini sent no answer");
+          text = parts.map(function (p) { return p.text || ""; }).join(""); lastErr = null; break;
+        } catch (e) { lastErr = e; if (!/not found|404/i.test(e.message || "")) throw e; }
+      }
+      if (lastErr) throw lastErr;
+    } else if (prov === "claude") {
+      var d2 = await aiFetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": c.key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        body: JSON.stringify({ model: model, max_tokens: 1500, messages: [{ role: "user", content: prompt }] })
+      }, name);
+      text = (d2.content || []).map(function (p) { return p.text || ""; }).join("");
+    } else {
+      var base = String(c.baseUrl || pre.base || "").trim().replace(/\/+$/, "");
+      if (!base) throw new Error("add a Base URL in Settings");
+      if (!model) throw new Error("add a Model name in Settings");
+      var d3 = await aiFetch(base + "/chat/completions", {
+        method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + c.key },
+        body: JSON.stringify({ model: model, messages: [{ role: "user", content: prompt }] })
+      }, name);
+      var ch = d3.choices && d3.choices[0];
+      text = (ch && ch.message && ch.message.content) || "";
+      if (Array.isArray(text)) text = text.map(function (p) { return p.text || ""; }).join("");
     }
-    throw lastErr || new Error("Gemini failed");
+    if (!String(text).trim()) throw new Error(name + " sent no answer");
+    return expectJson ? aiParse(text) : text;
   }
 
   function ask() {
-    var key = localStorage.getItem("gemini_api_key");
+    var key = aiKey();
     if (!key) {
       cookN++;
-      nudge.text = "💡 Tip: Gemini AI is optional. You can add a key in Settings for AI generation, or tap 'Another idea' to explore built-in recipes!";
+      nudge.text = "💡 Tip: the AI helper is optional. You can add a key in Settings for AI generation, or tap 'Another idea' to explore built-in recipes!";
       render(); return;
     }
     if (nudge.busy) return;
     nudge.busy = true; render();
     var kindWords = { quick: "a quick meal that takes 20 minutes or less", breakfast: "a breakfast", lunch: "a lunch", dinner: "a dinner", veg: "a vegetarian meal" };
     var prompt = "You are a friendly home-cooking helper. Suggest exactly one " + kindWords[cookKind] + " for someone standing in their kitchen. Dietary rules: " + dietPrompt() + " Reply with dish name, then two short sentences on how to make it and key ingredients. Under 45 words. No lists.";
-    callGemini(prompt, false).then(function (text) { nudge.text = text.trim(); }).catch(function (e) { nudge.text = "Gemini could not answer: " + str(e && e.message, 120); }).then(function () { nudge.busy = false; render(); });
+    callAI(prompt, false).then(function (text) { nudge.text = text.trim(); }).catch(function (e) { nudge.text = aiName() + " could not answer: " + str(e && e.message, 120); }).then(function () { nudge.busy = false; render(); });
   }
 
   function arr(v) { return Array.isArray(v) ? v : []; }
   function askIngredients(text) {
     lastIng = text; ai.err = ""; ai.result = null;
-    var key = localStorage.getItem("gemini_api_key");
+    var key = aiKey();
     var myKitchenId = getKitchenId();
     var rList = houseRecipes.filter(r => (r.kitchenId || "house") === myKitchenId);
 
-    if (!key) { ai.err = "Gemini key is optional. Your saved recipes matching those ingredients are displayed above!"; render(); return; }
+    if (!key) { ai.err = "An AI key is optional. Your saved recipes matching those ingredients are displayed above!"; render(); return; }
     ai.busy = true; render();
     var saved = rList.slice(0, 30).map(function (r) { return "- " + str(r.name, 80) + ": " + str(r.ingredients, 200); }).join("\n");
     var prompt = "You are a friendly home-cooking helper. Data:\nINGREDIENTS THEY HAVE:\n<<<" + str(text, 200) + ">>>\nTHEIR SAVED RECIPES:\n<<<" + (saved || "(none)") + ">>>\nTask: 1) List saved recipes they could make using exact name. 2) Suggest up to 2 new ideas. Dietary rules: " + dietPrompt() + " Only list saved recipes that also fit those rules. Reply with JSON only: {\"fromMyRecipes\":[{\"name\":\"\",\"missing\":[\"\"]}],\"ideas\":[{\"name\":\"\",\"ingredients\":[\"\"],\"method\":\"two short sentences\"}]}";
-    callGemini(prompt, true).then(function (r) {
+    callAI(prompt, true).then(function (r) {
       r = r || {}; var names = {}; rList.forEach(function (x) { names[x.name.toLowerCase()] = 1; });
       ai.result = {
         fromMyRecipes: (r.fromMyRecipes||[]).filter(function (x) { return x && names[String(x.name).toLowerCase()]; }).slice(0, 5).map(function (x) { return { name: str(x.name, 80), missing: (x.missing||[]).slice(0, 8).map(function (m) { return str(m, 40); }) }; }),
         ideas: (r.ideas||[]).slice(0, 2).map(function (x) { return { name: str(x && x.name, 80), ingredients: (x.ingredients||[]).slice(0, 15).map(function (m) { return str(m, 40); }), method: str(x && x.method, 400), saved: false }; }).filter(function (x) { return x.name; })
       };
-    }).catch(function (e) { ai.err = "Gemini could not answer (" + str(e && e.message, 120) + "). Your saved recipes are listed above."; }).then(function () { ai.busy = false; render(); });
+    }).catch(function (e) { ai.err = aiName() + " could not answer (" + str(e && e.message, 120) + "). Your saved recipes are listed above."; }).then(function () { ai.busy = false; render(); });
   }
 
   function addChore(text, rep) { text = String(text || "").trim(); if (!text) return; me.chores.push({ id: newId(), text: text, repeat: rep || "weekly", doneKey: null }); saveMe(); render(); }
@@ -1417,7 +1486,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     if (act === "cook-next") { cookN++; nudge.text = ""; render(); return; }
     if (act === "bfilter") { boardFilter = el.getAttribute("data-f"); render(); return; }
     if (act === "toggle-completed") { showCompletedHouse = !showCompletedHouse; render(); return; }
-    if (act === "api-clear") { localStorage.removeItem("gemini_api_key"); flash("API Key removed."); render(); return; }
+    if (act === "api-clear") { localStorage.removeItem("gemini_api_key"); localStorage.removeItem("ai_config"); flash("API key removed."); render(); return; }
     
     if (act === "agree-reward") { scores._meta.rewardData.agreed.push(uid); if(scores._meta.rewardData.agreed.length >= Object.keys(scores).length-1) { scores._meta.rewardData.status = 'active'; flash("Challenge activated!"); } saveSharedDB(); render(); return; }
     if (act === "ack-reward") { delete scores._meta.rewardData; saveSharedDB(); render(); return; }
@@ -1496,8 +1565,13 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       saveMe(); saveSharedDB(); applyTheme(); flash("Preferences saved."); render();
     } else if (fid === "apiForm") {
       var keyInput = document.getElementById("apiKeyInput").value.trim();
-      if (keyInput) { localStorage.setItem("gemini_api_key", keyInput); flash("Gemini API key saved."); }
-      else { localStorage.removeItem("gemini_api_key"); flash("Gemini API key cleared."); }
+      localStorage.removeItem("gemini_api_key");
+      if (keyInput) {
+        var cfg = { provider: document.getElementById("aiProvider").value, key: keyInput,
+          model: document.getElementById("aiModel").value.trim(), baseUrl: document.getElementById("aiBase").value.trim() };
+        if (cfg.provider === "custom" && !cfg.baseUrl) { flash("Other services need a Base URL."); return; }
+        saveJson("ai_config", cfg); flash(aiName() + " key saved.");
+      } else { localStorage.removeItem("ai_config"); flash("AI key cleared."); }
       render();
     } else if (fid === "onboardJoinForm") {
       var codeIn = document.getElementById("onboardJoinInput").value.trim().toUpperCase();
