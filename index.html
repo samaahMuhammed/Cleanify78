@@ -302,6 +302,8 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
   var shared = getArr(DB_SHARED);
   var shopping = getArr(DB_SHOPPING);
   var chat = getArr(DB_CHAT);
+  var DB_CHATREAD = "one-small-thing-db-chatread";
+  var chatReads = loadJson(DB_CHATREAD) || {};
   var houseRecipes = getArr(DB_HOUSE_RECIPES);
   var scores = loadJson(DB_SCORES) || {}; 
   
@@ -408,7 +410,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
   
   function persistShared() {
     saveJson(DB_SHARED, shared); saveJson(DB_SHOPPING, shopping); saveJson(DB_SCORES, scores);
-    saveJson(DB_CHAT, chat); saveJson(DB_HOUSE_RECIPES, houseRecipes);
+    saveJson(DB_CHAT, chat); saveJson(DB_HOUSE_RECIPES, houseRecipes); saveJson(DB_CHATREAD, chatReads);
   }
   function saveSharedDB() {
     if (chat.length > 300) chat = chat.slice(-300);
@@ -559,7 +561,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
   function byTime(a, b) { return (a.time || 0) - (b.time || 0); }
   function normShared(d) {
     d = isObj(d) ? d : {};
-    return { v: 1, shared: arr(d.shared), shopping: arr(d.shopping), chat: arr(d.chat).slice().sort(byTime), houseRecipes: arr(d.houseRecipes), scores: isObj(d.scores) ? d.scores : {} };
+    return { v: 1, shared: arr(d.shared), shopping: arr(d.shopping), chat: arr(d.chat).slice().sort(byTime), houseRecipes: arr(d.houseRecipes), scores: isObj(d.scores) ? d.scores : {}, chatReads: isObj(d.chatReads) ? d.chatReads : {} };
   }
   function normalizeMe(s) {
     var m = blankMe();
@@ -570,12 +572,12 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     return m;
   }
   function snap(kind) {
-    return clone(kind === "shared" ? normShared({ shared: shared, shopping: shopping, chat: chat, houseRecipes: houseRecipes, scores: scores }) : normalizeMe(me));
+    return clone(kind === "shared" ? normShared({ shared: shared, shopping: shopping, chat: chat, houseRecipes: houseRecipes, scores: scores, chatReads: chatReads }) : normalizeMe(me));
   }
   function applySnap(kind, d) {
     if (kind === "shared") {
       d = normShared(d);
-      shared = d.shared; shopping = d.shopping; chat = d.chat; houseRecipes = d.houseRecipes; scores = d.scores;
+      shared = d.shared; shopping = d.shopping; chat = d.chat; houseRecipes = d.houseRecipes; scores = d.scores; chatReads = d.chatReads;
       persistShared();
     } else {
       me = normalizeMe(d); saveJson(KEY, me); applyTheme();
@@ -935,7 +937,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     openList.forEach(function (c) { var st = timeStats(c.id); if (st) { minsOpen += st.avg; known++; } });
     var pct = total ? Math.round(doneN / total * 100) : 0;
     
-    var chatBtn = '<button class="btn" data-act="open-chat" style="width:100%; margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center;"><span>💬 Roommate Chat</span><span class="tag">' + chat.length + ' msgs</span></button>';
+    var chatBtn = '<button class="btn" data-act="open-chat" style="width:100%; margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center;"><span>💬 Roommate Chat</span>' + (chatUnread() ? '<span class="tag" aria-label="' + chatUnread() + ' unread messages">' + chatUnread() + ' new</span>' : '') + '</button>';
 
     var progress = '<section class="card" aria-labelledby="h-home"><h2 id="h-home">Home today</h2>' +
       (total ? '<p class="big">' + doneN + ' of ' + total + ' house jobs done</p><div class="meter"><i style="width:' + pct + '%"></i></div><p class="small">' + (doneN === total ? "All clear. The house is reset." : "A few small things keep it from piling up.") + '</p>' : '<p class="note">No house jobs yet.</p>') + '</section>';
@@ -972,6 +974,26 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       (sug ? '<div class="chips">' + sug + '</div>' : "") + '</section>';
   }
 
+  function chatMembers() { return Object.keys(scores || {}).filter(function (k) { return k !== "_meta"; }); }
+  function chatLatest() { return chat.length ? chat[chat.length - 1].time || 0 : 0; }
+  function chatUnread() {
+    var seen = chatReads[uid] || 0;
+    return chat.filter(function (m) { return m.uid !== uid && m.uid !== "system" && (m.time || 0) > seen; }).length;
+  }
+  function markChatRead() {
+    if (document.hidden) return;
+    var latest = chatLatest();
+    if (latest > (chatReads[uid] || 0)) { chatReads[uid] = latest; saveSharedDB(); }
+  }
+  function seenLabel(m) {
+    var others = chatMembers().filter(function (k) { return k !== uid; });
+    if (!others.length) return "";
+    var n = others.filter(function (k) { return (chatReads[k] || 0) >= (m.time || 0); }).length;
+    if (n === 0) return "\u2713 Sent";
+    if (n === others.length) return "\u2713\u2713 Seen by " + (others.length === 1 ? "your roommate" : "everyone");
+    return "\u2713\u2713 Seen by " + n + " of " + others.length;
+  }
+
   function chatView() {
     var msgs = chat.map(function(m) {
       if (m.uid === "system") {
@@ -983,7 +1005,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
              '<span style="display:inline-block; padding:0.5rem 0.8rem; border-radius:12px; max-width:80%; word-break:break-word; text-align:left; ' +
              (isMe ? 'background:var(--accent); color:var(--accent-ink);' : 'background:var(--soft); color:var(--ink);') +
              '">' + esc(m.text) + '</span>' +
-             '<div style="font-size:0.7rem; color:var(--muted); margin-top:0.2rem;">' + (isMe ? 'You' : 'Roommate') + ' • ' + time + '</div>' +
+             '<div style="font-size:0.7rem; color:var(--muted); margin-top:0.2rem;">' + (isMe ? 'You' : 'Roommate') + ' • ' + time + (isMe ? ' • <span style="color:var(--accent);">' + esc(seenLabel(m)) + '</span>' : '') + '</div>' +
              '</div>';
     }).join("");
 
@@ -1260,7 +1282,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       }
       
       document.getElementById("app").innerHTML = tabsBar() + (flashMsg ? '<p class="banner" role="status">' + esc(flashMsg) + '</p>' : "") + body;
-      if (tab === "house" && showChat) { var cb = document.getElementById("chatBox"); if (cb) cb.scrollTop = cb.scrollHeight; }
+      if (tab === "house" && showChat) { var cb = document.getElementById("chatBox"); if (cb) cb.scrollTop = cb.scrollHeight; markChatRead(); }
     }
 
     Object.keys(keep).forEach(function (id) { var el = document.getElementById(id); if (el) el.value = keep[id]; });
@@ -1417,7 +1439,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     var rq = scores._meta && scores._meta.resetRequest; if (!rq) return false;
     var houseSize = Object.keys(scores).length - 1;
     if (rq.agreed.length < houseSize) return false;
-    shared = []; shopping = []; chat = []; houseRecipes = [];
+    shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
     Object.keys(scores).forEach(function (k) { if (k !== "_meta") scores[k].entries = {}; });
     delete scores._meta.resetRequest;
     return true;
@@ -1436,7 +1458,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     if (act === "sync-off") { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(META_KEY); clearTimeout(syncTimer); sync = null; syncMeta = {}; syncState = { status: "off", msg: "", last: 0 }; flash("Sync turned off. Your data stays on this device."); return; }
     if (act === "create-home") {
       scores = { _meta: { inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(), kitchenMode: "shared", rewardsEnabled: false } };
-      scores[uid] = { joined: Date.now(), entries: {} }; shared = []; shopping = []; chat = []; houseRecipes = [];
+      scores[uid] = { joined: Date.now(), entries: {} }; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
       saveSharedDB(); flash("Home created! Your invite code is on the Board tab."); render(); return;
     }
     if (act === "leave-home") {
@@ -1444,7 +1466,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       confirmAct = "";
       if (scores && scores[uid]) { delete scores[uid]; saveSharedDB(); }
       var finishLeave = function () {
-        [KEY, DB_SHARED, DB_SHOPPING, DB_SCORES, DB_CHAT, DB_HOUSE_RECIPES, META_KEY].forEach(function (k) { localStorage.removeItem(k); });
+        [KEY, DB_SHARED, DB_SHOPPING, DB_SCORES, DB_CHAT, DB_HOUSE_RECIPES, DB_CHATREAD, META_KEY].forEach(function (k) { localStorage.removeItem(k); });
         location.reload();
       };
       if (sync) { clearTimeout(syncTimer); flash("Leaving..."); syncAll(false).then(finishLeave, finishLeave); } else finishLeave();
@@ -1474,7 +1496,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     if (act === "toggle-stats") { showStats = !showStats; render(); return; }
     if (act === "open-chat") { showChat = true; render(); return; }
     if (act === "close-chat") { showChat = false; render(); return; }
-    if (act === "chat-clear") { if (confirmAct !== "chat-clear") { confirmAct = "chat-clear"; render(); return; } confirmAct = ""; chat = []; saveSharedDB(); render(); return; }
+    if (act === "chat-clear") { if (confirmAct !== "chat-clear") { confirmAct = "chat-clear"; render(); return; } confirmAct = ""; chat = []; chatReads = {}; saveSharedDB(); render(); return; }
     if (act === "chat-add-task") {
       var ci2 = document.getElementById("chatInput"), tName = ci2 ? ci2.value.trim() : "";
       if (!tName) { flash("Type the task in the message box first, then tap + Task."); return; }
@@ -1623,6 +1645,8 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
 
   document.addEventListener("submit", function (e) { e.preventDefault(); handleForm(e.target.id); });
 
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && showChat) render(); });
+  setInterval(function () { if (sync && showChat && !document.hidden) syncAll(false); }, 5000);
   render();
   if (sync) {
     syncAll(true);
