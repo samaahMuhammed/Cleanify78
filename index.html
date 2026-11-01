@@ -656,12 +656,112 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     return { sha: j.content && j.content.sha };
   }
 
+  /* ---------- HOME SYNC (invite link, no accounts) ----------
+     The house data is AES-GCM encrypted on this device, then stored as one blob on a free JSON host.
+     The invite link holds the blob address + the key after a "#", which browsers never send to any server. */
+  var RELAY_KEY = "one-small-thing-relay", RELAY_BASE = "https://jsonblob.com/api/jsonBlob";
+  var relay = loadJson(RELAY_KEY), relayErr = "";
+  function syncOn() { return !!(sync || relay); }
+  function hashOf(o) { var t = canon(o), h = 5381; for (var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return "h" + h.toString(36) + "." + t.length; }
+  function b64u(bytes) { var bin = ""; for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+  function unb64u(t) { t = t.replace(/-/g, "+").replace(/_/g, "/"); while (t.length % 4) t += "="; var bin = atob(t), out = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+  function newRelayKey() { return b64u(crypto.getRandomValues(new Uint8Array(16))); }
+  async function rKey(k) { return crypto.subtle.importKey("raw", unb64u(k), "AES-GCM", false, ["encrypt", "decrypt"]); }
+  async function rEnc(obj, k) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, await rKey(k), new TextEncoder().encode(JSON.stringify(obj)));
+    return { v: 1, iv: b64u(iv), ct: b64u(new Uint8Array(ct)) };
+  }
+  async function rDec(pack, k) {
+    try {
+      var pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64u(pack.iv) }, await rKey(k), unb64u(pack.ct));
+      return JSON.parse(new TextDecoder().decode(pt));
+    } catch (e) { throw new Error("Could not unlock this home. Check the invite link."); }
+  }
+  async function rFetch(url, opts) {
+    var res;
+    try { res = await fetch(url, opts); } catch (e) { throw new Error("Can't reach the sync service. Check your connection."); }
+    return res;
+  }
+  async function relayCreate(obj, key) {
+    var res = await rFetch(RELAY_BASE, { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(await rEnc(obj, key)) });
+    if (!res.ok) throw new Error("The sync service refused (" + res.status + ").");
+    var loc = res.headers.get("Location") || res.headers.get("X-jsonblob") || "";
+    var id = loc.split("/").filter(Boolean).pop();
+    if (!id) throw new Error("The sync service did not return a home address.");
+    return id;
+  }
+  async function relayGet() {
+    var res = await rFetch(RELAY_BASE + "/" + encodeURIComponent(relay.id) + "?_=" + Date.now(), { headers: { "Accept": "application/json" }, cache: "no-store" });
+    if (res.status === 404) throw new Error("This home's cloud copy was not found.");
+    if (!res.ok) throw new Error("The sync service had a problem (" + res.status + ").");
+    var data = await rDec(await res.json(), relay.key);
+    return { sha: hashOf(data), data: data };
+  }
+  async function relayPut(obj) {
+    var res = await rFetch(RELAY_BASE + "/" + encodeURIComponent(relay.id), { method: "PUT", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(await rEnc(obj, relay.key)) });
+    if (!res.ok) throw new Error("The sync service had a problem (" + res.status + ").");
+    return { sha: hashOf(obj) };
+  }
+  async function startRelay() {
+    try {
+      var key = newRelayKey(), data = snap("shared"), id = await relayCreate(data, key);
+      relay = { id: id, key: key }; saveJson(RELAY_KEY, relay);
+      syncMeta.sharedRelay = { sha: hashOf(data), base: clone(data) }; saveMeta();
+      syncState = { status: "ok", msg: "", last: Date.now() };
+      return true;
+    } catch (e) { relayErr = str(e && e.message, 160); return false; }
+  }
+  function parseInvite(t) {
+    t = String(t || "").trim();
+    var m = t.match(/join=([\w-]+)\.([\w-]{16,})/) || t.match(/^([\w-]+)\.([\w-]{16,})$/);
+    return m ? { id: m[1], key: m[2] } : null;
+  }
+  function inviteLink() { return relay ? location.href.split("#")[0] + "#join=" + relay.id + "." + relay.key : ""; }
+  function inviteHash() { try { return (location.hash || "").indexOf("join=") >= 0 ? location.hash.replace(/^#/, "") : ""; } catch (e) { return ""; } }
+  function copyText(t) { return (navigator.clipboard && navigator.clipboard.writeText) ? navigator.clipboard.writeText(t).then(function () { return true; }, function () { return false; }) : Promise.resolve(false); }
+  async function joinRelay(inv, name) {
+    var prev = relay; relay = { id: inv.id, key: inv.key };
+    try {
+      var r = await relayGet(), d = normShared(r.data);
+      if (!d.scores || !d.scores._meta) throw new Error("That invite doesn't look like a home.");
+      applySnap("shared", d);
+      me.name = name; saveMe();
+      scores[uid] = scores[uid] || { joined: Date.now(), entries: {} };
+      scores[uid].name = name;
+      saveJson(RELAY_KEY, relay);
+      syncMeta.sharedRelay = { sha: r.sha, base: clone(d) }; saveMeta();
+      saveSharedDB();
+      try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+      flash("Joined! Welcome, " + name + ".");
+      syncAll(true);
+    } catch (e) { relay = prev; flash(str(e && e.message, 160)); }
+  }
+  function inviteHtml() {
+    if (relay) return '<p class="small" style="margin-bottom:1.5rem;">Invite roommates: <button class="btn small" data-act="copy-invite">Copy invite link</button></p>';
+    return '<p class="small" style="margin-bottom:1.5rem;">Roommates on other phones can\'t join yet. <button class="btn small" data-act="relay-on">Turn on home sync</button></p>';
+  }
+  function homeSyncCard() {
+    if (!(scores && scores._meta)) return "";
+    if (relay) {
+      var st = syncState.status === "syncing" ? "Syncing…" : syncState.status === "error" ? "Problem: " + syncState.msg : syncState.status === "offline" ? "Offline. It will sync when you are back online." : syncState.last ? "Up to date (checked " + new Date(syncState.last).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + ")" : "Connecting…";
+      return '<section class="card"><h2>Home sync</h2><p class="small">On. Roommates with your invite link stay in step with you. The data is encrypted before it leaves your device.</p>' +
+        '<p class="' + (syncState.status === "error" ? "say" : "small") + '">' + esc(st) + '</p>' +
+        '<div class="row"><button class="btn primary small" data-act="copy-invite">Copy invite link</button><button class="btn quiet small" data-act="sync-now">Sync now</button>' +
+        '<button class="btn quiet small" data-act="relay-off">' + (confirmAct === "relay-off" ? "Sure?" : "Turn off") + '</button></div></section>';
+    }
+    return '<section class="card"><h2>Home sync</h2><p class="small">Let roommates join from their own phones with a link. No accounts or setup. Your home is encrypted before it is uploaded, and only people with the invite link can read it.</p>' +
+      (relayErr ? '<p class="say">' + esc(relayErr) + '</p>' : '') +
+      '<button class="btn primary" data-act="relay-on">Turn on home sync</button></section>';
+  }
+
   async function syncFile(kind) {
-    var f = syncMeta[kind] || (syncMeta[kind] = {});
+    var useRelay = kind === "shared" && !!relay, mk = useRelay ? "sharedRelay" : kind;
+    var f = syncMeta[mk] || (syncMeta[mk] = {});
     var path = kind === "shared" ? "data/house.json" : "data/me-" + uid + ".json";
     var changed = false;
     for (var attempt = 0; attempt < 4; attempt++) {
-      var r = await ghGet(path);
+      var r = useRelay ? await relayGet() : await ghGet(path);
       var local = snap(kind);                       // fresh snapshot, no awaits until applied
       if (!r.missing && f.sha === r.sha && f.base && jeq(local, f.base)) return changed;
       PREF_REMOTE = !f.base;                        // first ever sync on this device: repo wins ties
@@ -670,9 +770,10 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       merged = kind === "shared" ? normShared(merged) : normalizeMe(merged);
       if (!jeq(merged, local)) { applySnap(kind, merged); changed = true; }
       if (!r.missing && jeq(merged, r.data)) { f.sha = r.sha; f.base = clone(merged); saveMeta(); return changed; }
-      var p = await ghPut(path, merged, r.missing ? null : r.sha, "Just One sync (" + kind + ")");
+      var p = useRelay ? await relayPut(merged) : await ghPut(path, merged, r.missing ? null : r.sha, "Just One sync (" + kind + ")");
       if (p.conflict) continue;
       f.sha = p.sha; f.base = clone(merged); saveMeta();
+      if (useRelay) setTimeout(function () { syncAll(false); }, 4000);   // re-check that a simultaneous edit did not overwrite ours
       return changed;
     }
     throw new Error("Too many edits at once. Try again in a moment.");
@@ -682,7 +783,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
   function updateSyncLine() {
     var el = document.getElementById("dateLine"); if (!el) return;
     var s = "";
-    if (sync) {
+    if (syncOn()) {
       s = syncState.status === "syncing" ? " · ☁ syncing…" : syncState.status === "error" ? " · ⚠ sync problem" : syncState.status === "offline" ? " · offline" : syncState.last ? " · ☁ synced" : "";
     }
     el.textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) + s;
@@ -690,13 +791,13 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
 
   function runSync(manual) {
     syncInflight = (async function () {
-      if (!sync) return;
+      if (!syncOn()) return;
       if (navigator.onLine === false) { setSync("offline"); return; }
       syncing = true; setSync("syncing");
       var changed = false;
       try {
         if (await syncFile("shared")) changed = true;
-        if (await syncFile("me")) changed = true;
+        if (sync && await syncFile("me")) changed = true;
         syncState.last = Date.now(); setSync("ok");
       } catch (e) { setSync("error", str(e && e.message, 160)); }
       syncing = false;
@@ -705,7 +806,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     return syncInflight;
   }
   function syncAll(manual) {
-    if (!sync) return Promise.resolve();
+    if (!syncOn()) return Promise.resolve();
     if (syncing) {
       if (!syncQueued) syncQueued = syncInflight.then(function () { syncQueued = null; return runSync(manual); });
       return syncQueued;
@@ -713,7 +814,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     return runSync(manual);
   }
   function scheduleSync() {
-    if (!sync) return;
+    if (!syncOn()) return;
     clearTimeout(syncTimer);
     syncTimer = setTimeout(function () { syncAll(false); }, 1500);
   }
@@ -779,8 +880,9 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
         '<input id="onboardName" type="text" maxlength="20" placeholder="What should roommates call you?" value="' + esc(me.name || "") + '" autocomplete="given-name" style="padding:0.8rem; font-size:1.1rem; border:1px solid var(--line); border-radius:10px;">' +
         '<button class="btn primary large" data-act="create-home">Create Home</button>' +
         '<div style="display:flex; align-items:center; gap:0.5rem; color:var(--muted);"><hr style="flex:1; border-top:1px solid var(--line); border-bottom:0;">OR<hr style="flex:1; border-top:1px solid var(--line); border-bottom:0;"></div>' +
+        (inviteHash() ? '<p class="small" style="text-align:center;">You have been invited to a home. Enter your name above, then tap Join Home.</p>' : '') +
         '<form id="onboardJoinForm" style="display:flex; flex-direction:column; gap:0.5rem;">' +
-          '<input id="onboardJoinInput" type="text" placeholder="Enter Invite Code" style="text-align:center; padding:0.8rem; font-size:1.1rem; border:1px solid var(--line); border-radius:10px; text-transform:uppercase;" autocomplete="off" required>' +
+          '<input id="onboardJoinInput" type="text" placeholder="Paste invite link or code" value="' + esc(inviteHash()) + '" style="text-align:center; padding:0.8rem; font-size:1.1rem; border:1px solid var(--line); border-radius:10px;" autocomplete="off" required>' +
           '<button class="btn large" type="submit">Join Home</button>' +
         '</form>' +
       '</div>' +
@@ -837,7 +939,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       '</select></div>' +
       '<button class="btn primary" type="submit">Save Preferences</button></form></section>' +
       
-      nameCard() + syncCard() + '<section class="card"><h2>Food & Diet</h2>' +
+      nameCard() + homeSyncCard() + syncCard() + '<section class="card"><h2>Food & Diet</h2>' +
       '<p class="small">Tell the app how you eat. Meal ideas and AI suggestions will follow it.</p>' +
       '<form class="add stack" id="dietForm" novalidate>' +
         '<label class="label" for="dietSelect">Dietary preference</label>' +
@@ -1140,7 +1242,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
 
     html += '<section class="card" aria-labelledby="h-board" style="border:none; background:transparent; padding:0;">' + 
       '<h2 id="h-board" style="margin-bottom:0.5rem; color:var(--ink);">LEADERBOARD</h2>' + filterChips + 
-      '<p class="small" style="margin-bottom:1.5rem;">Invite roommates with code: <strong>' + esc(inviteCode) + '</strong></p>' +
+      inviteHtml() +
       (lis ? '<ul class="board">' + lis + '</ul>' : '<p class="note">Nobody has joined yet.</p>') + '</section>';
     return html;
   }
@@ -1485,23 +1587,31 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
     if (act === "sync-now") { syncAll(true); return; }
     if (act === "sync-off") { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(META_KEY); clearTimeout(syncTimer); sync = null; syncMeta = {}; syncState = { status: "off", msg: "", last: 0 }; flash("Sync turned off. Your data stays on this device."); return; }
     if (act === "edit-name") { tab = "settings"; showChat = false; showStats = false; render(); setTimeout(function () { var ni = document.getElementById("nameInput"); if (ni) { ni.focus(); ni.select(); } }, 50); return; }
+    if (act === "copy-invite") { var lk = inviteLink(); copyText(lk).then(function (ok) { if (ok) flash("Invite link copied. Send it to your roommates."); else window.prompt("Copy this invite link:", lk); }); return; }
+    if (act === "relay-on") { flash("Turning on home sync…"); startRelay().then(function (ok) { flash(ok ? "Home sync is on. Copy the invite link from the Board tab." : "Could not turn on home sync: " + relayErr); }); return; }
+    if (act === "relay-off") {
+      if (confirmAct !== "relay-off") { confirmAct = "relay-off"; render(); return; }
+      confirmAct = ""; localStorage.removeItem(RELAY_KEY); relay = null; delete syncMeta.sharedRelay; saveMeta();
+      syncState = { status: sync ? "idle" : "off", msg: "", last: 0 };
+      flash("Home sync turned off. Your data stays on this device."); return;
+    }
     if (act === "create-home") {
       var nmC = str(document.getElementById("onboardName") && document.getElementById("onboardName").value, 20).trim();
       if (!nmC) { flash("Please enter your name first."); return; }
       me.name = nmC; saveMe();
       scores = { _meta: { inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(), kitchenMode: "shared", rewardsEnabled: false } };
       scores[uid] = { joined: Date.now(), entries: {}, name: nmC }; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
-      saveSharedDB(); flash("Home created! Your invite code is on the Board tab."); render(); return;
+      saveSharedDB(); flash("Creating your home…"); startRelay().then(function (ok) { flash(ok ? "Home created! Copy the invite link from the Board tab and send it to your roommates." : "Home created on this device only. Turn on home sync in Settings to invite roommates. (" + relayErr + ")"); }); return;
     }
     if (act === "leave-home") {
       if (confirmAct !== "leave-home") { confirmAct = "leave-home"; render(); return; }
       confirmAct = "";
       if (scores && scores[uid]) { delete scores[uid]; saveSharedDB(); }
       var finishLeave = function () {
-        [KEY, DB_SHARED, DB_SHOPPING, DB_SCORES, DB_CHAT, DB_HOUSE_RECIPES, DB_CHATREAD, META_KEY].forEach(function (k) { localStorage.removeItem(k); });
+        [KEY, DB_SHARED, DB_SHOPPING, DB_SCORES, DB_CHAT, DB_HOUSE_RECIPES, DB_CHATREAD, META_KEY, RELAY_KEY].forEach(function (k) { localStorage.removeItem(k); });
         location.reload();
       };
-      if (sync) { clearTimeout(syncTimer); flash("Leaving..."); syncAll(false).then(finishLeave, finishLeave); } else finishLeave();
+      if (syncOn()) { clearTimeout(syncTimer); flash("Leaving..."); syncAll(false).then(finishLeave, finishLeave); } else finishLeave();
       return;
     }
     if (act === "request-reset") {
@@ -1635,6 +1745,8 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
       var codeIn = document.getElementById("onboardJoinInput").value.trim().toUpperCase();
       var nmJ = str(document.getElementById("onboardName") && document.getElementById("onboardName").value, 20).trim();
       if (!nmJ) { flash("Please enter your name first."); return; }
+      var inv = parseInvite(document.getElementById("onboardJoinInput").value);
+      if (inv) { flash("Joining…"); joinRelay(inv, nmJ); return; }
       if (scores && scores._meta && codeIn === scores._meta.inviteCode) { me.name = nmJ; saveMe(); scores[uid] = { joined: Date.now(), entries: {}, name: nmJ }; saveSharedDB(); flash("Joined successfully!"); render(); } 
       else { flash("Invalid invite code or no home exists on this device yet."); }
     } else if (fid === "chatForm") {
@@ -1684,14 +1796,12 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
   document.addEventListener("submit", function (e) { e.preventDefault(); handleForm(e.target.id); });
 
   document.addEventListener("visibilitychange", function () { if (!document.hidden && showChat) render(); });
-  setInterval(function () { if (sync && showChat && !document.hidden) syncAll(false); }, 5000);
+  setInterval(function () { if (syncOn() && showChat && !document.hidden) syncAll(false); }, 5000);
   render();
-  if (sync) {
-    syncAll(true);
-    setInterval(function () { if (sync && !document.hidden) syncAll(false); }, 20000);
-    document.addEventListener("visibilitychange", function () { if (!document.hidden) syncAll(false); });
-    window.addEventListener("online", function () { syncAll(false); });
-  }
+  setInterval(function () { if (syncOn() && !document.hidden) syncAll(false); }, 20000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) syncAll(false); });
+  window.addEventListener("online", function () { syncAll(false); });
+  if (syncOn()) syncAll(true);
 })();
 </script>
 </body>

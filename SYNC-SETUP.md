@@ -1,4 +1,21 @@
-# Just One: GitHub sync setup
+# Just One: syncing
+
+## Easiest: invite-link home sync (no accounts)
+
+1. One person taps **Create Home**. The app uploads an encrypted copy of the home and makes an invite link.
+2. Board tab (or Settings → Home sync) → **Copy invite link** → send it to roommates.
+3. Roommates open the link, type their name, tap **Join Home**. Done.
+
+For a home you already created: Settings → Home sync → **Turn on home sync**.
+
+How it stays private: the house data is encrypted on your device (AES-GCM) before upload. The key travels only in the part of the link after `#`, which browsers never send to any server. Anyone with the link can read and edit the home, so only share it with roommates. Turning sync off or losing the link does not delete anything on your devices.
+
+Limits: it depends on a free public JSON host (jsonblob.com), so there is no uptime guarantee. Your personal data (diet, theme, own chores) is not part of home sync; use the GitHub option below if you want that on several of your own devices.
+
+---
+
+# Optional: GitHub sync (advanced)
+
 
 The app is one file (`index.html`). GitHub plays two roles:
 
