@@ -202,15 +202,8 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
 body { padding-inline: max(16px, env(safe-area-inset-left), env(safe-area-inset-right)); }
 img, svg, video { max-width: 100%; }
 
-/* Phones: bottom navigation bar within thumb reach */
+/* Phones: keep the original top tabs; just tune sizes */
 @media (max-width: 640px) {
-  body { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
-  .shell > .tabs {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; margin: 0; border-radius: 16px 16px 0 0;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: var(--surface);
-    border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(0,0,0,0.08);
-  }
-  .tab { min-height: 48px; font-size: 0.8rem; }
   .landing h1 { font-size: 3rem; }
   .timer { font-size: 2.4rem; }
   .landing-box { padding: 1.4rem; }
