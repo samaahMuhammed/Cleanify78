@@ -508,11 +508,22 @@ img, svg, video { max-width: 100%; }
   function str(v, n) { return String(v == null ? "" : v).slice(0, n || 200); }
 
   /* ---------- time tracking ---------- */
-  function timeStats(ref) {
-    var arr = me.timeLog.filter(function (x) { return x.ref === ref; });
+  function normName(t) { return String(t || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim(); }
+  // Matches by task id OR by the same task name, so a retyped or re-added task still remembers past timings.
+  function timeStats(ref, name) {
+    var nn = normName(name);
+    var arr = me.timeLog.filter(function (x) { return (ref && x.ref === ref) || (nn && normName(x.name) === nn); });
     if (!arr.length) return null; var sum = 0; arr.forEach(function (x) { sum += x.mins; }); return { avg: sum / arr.length, n: arr.length };
   }
-  function statLine(ref) { var s = timeStats(ref); return s ? "Usually about " + Math.max(1, Math.round(s.avg)) + " min (timed " + s.n + (s.n === 1 ? " time" : " times") + ")" : ""; }
+  function statLine(ref, name) { var s = timeStats(ref, name); return s ? "Takes about " + Math.max(1, Math.round(s.avg)) + " min (timed " + s.n + (s.n === 1 ? " time" : " times") + ")" : ""; }
+  function updateHints() {
+    [["choreInput", "choreHint"], ["sharedInput", "sharedHint"]].forEach(function (pair) {
+      var inp = document.getElementById(pair[0]), out = document.getElementById(pair[1]);
+      if (!inp || !out) return;
+      var st = inp.value.trim() ? timeStats("", inp.value) : null;
+      out.textContent = st ? "\u23F1 You have timed this before. It takes about " + Math.max(1, Math.round(st.avg)) + " min (" + st.n + (st.n === 1 ? " time" : " times") + ")." : "";
+    });
+  }
   function stopTimer(log) {
     if (!timer) return;
     if (log) { var mins = Math.max(1, Math.round((Date.now() - timer.start) / 60000)); me.timeLog.push({ day: dayKey(new Date(timer.start)), ref: timer.ref, name: timer.name, mins: mins }); saveMe(); }
@@ -1112,7 +1123,7 @@ img, svg, video { max-width: 100%; }
     var open = me.chores.filter(function (c) { return !choreDone(c); });
     var closed = me.chores.filter(choreDone);
     var items = open.concat(closed).map(function (c) {
-      var d = choreDone(c), st = statLine(c.id);
+      var d = choreDone(c), st = statLine(c.id, c.text);
       return '<li class="' + (d ? "is-done" : "") + '"><div class="main"><label><input type="checkbox" data-act="chore-toggle" data-id="' + esc(c.id) + '"' + (d ? " checked" : "") + '><span class="t">' + esc(c.text) + '</span></label>' +
         (st ? '<p class="sub">' + esc(st) + '</p>' : "") + '</div><span class="tag">' + esc(repLabel(c.repeat)) + '</span>' + (d ? "" : timeBtn(c.id, c.text)) +
         '<button class="x" data-act="chore-rm" data-id="' + esc(c.id) + '">&times;</button></li>';
@@ -1126,7 +1137,7 @@ img, svg, video { max-width: 100%; }
       '<p class="small">Private to you. Each job you finish is worth 1 point.</p>' + list +
       '<form class="add" id="choreForm"><input id="choreInput" type="text" placeholder="Water the plant on my desk" autocomplete="off" maxlength="100">' +
       '<select id="choreRep"><option value="weekly">Weekly</option><option value="daily">Daily</option><option value="once">Once</option><option value="custom:2">Every 2 days</option><option value="custom:3">Every 3 days</option><option value="custom:14">Every 2 weeks</option></select>' +
-      '<button class="btn primary" type="submit">Add</button></form>' + (sug ? '<div class="chips">' + sug + '</div>' : "") + '</section>';
+      '<button class="btn primary" type="submit">Add</button></form><p class="small" id="choreHint" aria-live="polite" style="margin:0;color:var(--accent);"></p>' + (sug ? '<div class="chips">' + sug + '</div>' : "") + '</section>';
   }
 
   function houseView() {
@@ -1135,7 +1146,7 @@ img, svg, video { max-width: 100%; }
     openList.sort(function(a, b) { return (a.created || 0) - (b.created || 0); });
     doneList.sort(function(a, b) { return (a.created || 0) - (b.created || 0); });
     var total = shared.length, doneN = doneList.length, minsOpen = 0, known = 0;
-    openList.forEach(function (c) { var st = timeStats(c.id); if (st) { minsOpen += st.avg; known++; } });
+    openList.forEach(function (c) { var st = timeStats(c.id, c.title); if (st) { minsOpen += st.avg; known++; } });
     var pct = total ? Math.round(doneN / total * 100) : 0;
     
     var chatBtn = '<button class="btn" data-act="open-chat" style="width:100%; margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center;"><span>💬 Roommate Chat</span>' + (chatUnread() ? '<span class="tag" aria-label="' + chatUnread() + ' unread messages">' + chatUnread() + ' new</span>' : '') + '</button>';
@@ -1171,7 +1182,7 @@ img, svg, video { max-width: 100%; }
       (itemsHtml ? '<ul class="todo shared">' + itemsHtml + '</ul>' : "") + toggleBtn +
       '<form class="add" id="sharedForm"><input id="sharedInput" type="text" placeholder="Wipe the mirror" autocomplete="off" maxlength="100">' +
       '<select id="sharedEffort"><option value="1">Quick (1 pt)</option><option value="2" selected>Standard (2 pts)</option><option value="3">Big (3 pts)</option></select>' +
-      '<button class="btn primary" type="submit">Add</button></form>' +
+      '<button class="btn primary" type="submit">Add</button></form><p class="small" id="sharedHint" aria-live="polite" style="margin:0;color:var(--accent);"></p>' +
       (sug ? '<div class="chips">' + sug + '</div>' : "") + '</section>';
   }
 
@@ -1489,6 +1500,7 @@ img, svg, video { max-width: 100%; }
     }
 
     Object.keys(keep).forEach(function (id) { var el = document.getElementById(id); if (el) el.value = keep[id]; });
+    updateHints();
     if (active && keep[active] !== undefined) { var f = document.getElementById(active); if (f) f.focus(); }
     
     if (inHouse && (session || timer) && !tickId) tickId = setInterval(tick, 1000);
@@ -1875,6 +1887,7 @@ img, svg, video { max-width: 100%; }
     } catch (err) { flash("Something went wrong: " + str(err && err.message, 120)); }
   }
 
+  document.addEventListener("input", function (e) { if (e.target && (e.target.id === "choreInput" || e.target.id === "sharedInput")) updateHints(); });
   document.addEventListener("submit", function (e) { e.preventDefault(); handleForm(e.target.id); });
 
   document.addEventListener("visibilitychange", function () { if (!document.hidden && showChat) render(); });
