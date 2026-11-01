@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Just One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -35,6 +35,7 @@
   --soft: #D9EAE7; --accent: #2F7E8C; --accent-ink: #FFFFFF; --warm: #E2AE3A; --warm-ink: #3A2A00; --ok: #3C8D62;
   color-scheme: light;
 }
+:root { --w: 30rem; }
 
 * { box-sizing: border-box; }
 body {
@@ -42,7 +43,7 @@ body {
   font-size: 1rem; line-height: 1.5; padding-inline: 16px; padding-block: 0 3rem; margin: 0;
   transition: background-color 0.3s, color 0.3s;
 }
-.wrap { max-width: 30rem; margin-inline: auto; display: flex; flex-direction: column; gap: 1rem; padding-top: 1rem; }
+.wrap { max-width: var(--w); margin-inline: auto; display: flex; flex-direction: column; gap: 1rem; padding-top: 1rem; }
 
 /* Header */
 header {
@@ -51,10 +52,10 @@ header {
   background-size: 56px 28px, 56px 28px; border-bottom: 1px solid var(--line);
   transition: background-color 0.3s, border-color 0.3s;
 }
-header .inner { max-width: 30rem; margin-inline: auto; }
+header .inner { max-width: var(--w); margin-inline: auto; }
 .eyebrow { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 0; }
 h1 { font-family: var(--font-display); font-weight: 700; font-size: 2.4rem; line-height: 1.05; margin: 0.35rem 0 0.5rem; letter-spacing: -0.02em; text-wrap: balance; }
-.lede { margin: 0; color: var(--muted); max-width: 26rem; }
+.lede { margin: 0; color: var(--muted); max-width: 34rem; }
 
 /* Landing Page */
 .landing { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:80vh; text-align:center; animation: fadeIn 0.8s ease; }
@@ -193,6 +194,55 @@ form.add.stack { flex-direction: column; flex-wrap: nowrap; gap: 0.5rem; }
 form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 100%; }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---------- Adaptive layout: phone, tablet, laptop/desktop ---------- */
+.shell { display: block; }
+.main { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.shell > .tabs { margin-bottom: 1rem; }
+body { padding-inline: max(16px, env(safe-area-inset-left), env(safe-area-inset-right)); }
+img, svg, video { max-width: 100%; }
+
+/* Phones: bottom navigation bar within thumb reach */
+@media (max-width: 640px) {
+  body { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+  .shell > .tabs {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; margin: 0; border-radius: 16px 16px 0 0;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: var(--surface);
+    border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(0,0,0,0.08);
+  }
+  .tab { min-height: 48px; font-size: 0.8rem; }
+  .landing h1 { font-size: 3rem; }
+  .timer { font-size: 2.4rem; }
+  .landing-box { padding: 1.4rem; }
+}
+
+/* Tablets and small laptops: wider column */
+@media (min-width: 720px) {
+  :root { --w: 46rem; }
+  .card { padding: 1.3rem 1.4rem 1.4rem; }
+  .badges-grid, .recipe-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
+/* Laptops and desktops: side navigation + roomy content */
+@media (min-width: 1100px) {
+  :root { --w: 72rem; }
+  .shell { display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); gap: 1.75rem; align-items: start; }
+  .shell > .tabs {
+    position: sticky; top: 1rem; margin: 0; display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 16px;
+  }
+  .shell > .tabs .tab { text-align: left; padding: 0.6rem 1rem; min-height: 46px; font-size: 0.95rem; }
+  .shell > .tabs .tab:hover { background: var(--surface); color: var(--ink); }
+  .main > .card, .main > section { max-width: 100%; }
+  .board { max-width: 40rem; }
+  h1 { font-size: 3rem; }
+  .landing { min-height: 70vh; }
+}
+@media (min-width: 1600px) { html { font-size: 17px; } }
+
+/* Mouse and keyboard users get visible focus; touch users get no sticky hover */
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@media (hover: none) { .btn:hover, .x:hover, .recipe-card:hover { background: inherit; transform: none; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
@@ -1411,7 +1461,7 @@ form.add.stack input[type="text"], form.add.stack textarea { flex: none; width: 
         else { body = safeRender(timerBanner) + safeRender(profileCard) + safeRender(function(){return taskCard(today)}) + safeRender(choresCard) + safeRender(timeLogView); }
       }
       
-      document.getElementById("app").innerHTML = (needName ? "" : tabsBar()) + (flashMsg ? '<p class="banner" role="status">' + esc(flashMsg) + '</p>' : "") + body;
+      document.getElementById("app").innerHTML = needName ? ((flashMsg ? '<p class="banner" role="status">' + esc(flashMsg) + '</p>' : "") + body) : '<div class="shell">' + tabsBar() + '<div class="main">' + (flashMsg ? '<p class="banner" role="status">' + esc(flashMsg) + '</p>' : "") + body + '</div></div>';
       if (tab === "house" && showChat) { var cb = document.getElementById("chatBox"); if (cb) cb.scrollTop = cb.scrollHeight; markChatRead(); }
     }
 
