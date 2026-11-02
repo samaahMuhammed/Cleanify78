@@ -357,6 +357,7 @@ img, svg, video { max-width: 100%; }
   var showCompletedHouse = false;
   var showStats = false;
   var showChat = false;
+  var showCompletedMine = false;
   var openRecipeId = ""; 
   var nudge = { text: "", busy: false };
   var ai = { busy: false, result: null, err: "", asked: "" };
@@ -970,7 +971,7 @@ img, svg, video { max-width: 100%; }
           '<button class="btn large" type="submit">Join Home</button>' +
         '</form>' +
       '</div>' +
-      '<div style="width:100%;max-width:24rem;margin-top:1rem;text-align:left;">' + ((sync || showSyncSetup) ? syncCard() : '<button class="btn quiet" data-act="toggle-sync-setup">☁ Sync with GitHub</button>') + '</div></div>';
+      '<div style="width:100%;max-width:24rem;margin-top:1rem;text-align:left;">' + ((sync || showSyncSetup) ? syncCard() : '<button class="btn quiet" data-act="toggle-sync-setup">Advanced: GitHub sync</button>') + '</div></div>';
   }
 
   function tabsBar() {
@@ -1023,7 +1024,7 @@ img, svg, video { max-width: 100%; }
       '</select></div>' +
       '<button class="btn primary" type="submit">Save Preferences</button></form></section>' +
       
-      nameCard() + homeSyncCard() + syncCard() + '<section class="card"><h2>Food & Diet</h2>' +
+      nameCard() + homeSyncCard() + ((sync || showSyncSetup) ? syncCard() : '<section class="card"><h2>Advanced</h2><p class="small">Optional: sync your personal settings between your own devices through GitHub. Not needed for roommates or home sync.</p><button class="btn quiet small" data-act="toggle-sync-setup">Show GitHub sync</button></section>') + '<section class="card"><h2>Food & Diet</h2>' +
       '<p class="small">Tell the app how you eat. Meal ideas and AI suggestions will follow it.</p>' +
       '<form class="add stack" id="dietForm" novalidate>' +
         '<label class="label" for="dietSelect">Dietary preference</label>' +
@@ -1122,7 +1123,7 @@ img, svg, video { max-width: 100%; }
   function choresCard() {
     var open = me.chores.filter(function (c) { return !choreDone(c); });
     var closed = me.chores.filter(choreDone);
-    var items = open.concat(closed).map(function (c) {
+    var items = (showCompletedMine ? open.concat(closed) : open).map(function (c) {
       var d = choreDone(c), st = statLine(c.id, c.text);
       return '<li class="' + (d ? "is-done" : "") + '"><div class="main"><label><input type="checkbox" data-act="chore-toggle" data-id="' + esc(c.id) + '"' + (d ? " checked" : "") + '><span class="t">' + esc(c.text) + '</span></label>' +
         (st ? '<p class="sub">' + esc(st) + '</p>' : "") + '</div><span class="tag">' + esc(repLabel(c.repeat)) + '</span>' + (d ? "" : timeBtn(c.id, c.text)) +
@@ -1132,7 +1133,8 @@ img, svg, video { max-width: 100%; }
     var sug = MY_SUGGEST.filter(function (s) { return !have[s.text.toLowerCase()]; }).map(function (s) {
       return '<button class="chip add" data-act="chore-sug" data-text="' + esc(s.text) + '" data-rep="' + s.rep + '">+ ' + esc(s.text) + '</button>';
     }).join("");
-    var list = items ? '<ul class="todo">' + items + '</ul>' : '<p class="note">Nothing yet. Add your own jobs below.</p>';
+    var list = items ? '<ul class="todo">' + items + '</ul>' : '<p class="note">' + (closed.length ? 'All done for now. 🎉' : 'Nothing yet. Add your own jobs below.') + '</p>';
+    if (closed.length) list += '<div class="row"><button class="btn quiet small" data-act="toggle-completed-mine">' + (showCompletedMine ? 'Hide ' : 'Show ') + closed.length + ' completed</button></div>';
     return '<section class="card" aria-labelledby="h-mine"><h2 id="h-mine">My list</h2>' +
       '<p class="small">Private to you. Each job you finish is worth 1 point.</p>' + list +
       '<form class="add" id="choreForm"><input id="choreInput" type="text" placeholder="Water the plant on my desk" autocomplete="off" maxlength="100">' +
@@ -1668,6 +1670,7 @@ img, svg, video { max-width: 100%; }
     if (!el || el.tagName === "INPUT") return;
     var act = el.getAttribute("data-act"), today = dayKey(new Date()), id = el.getAttribute("data-id");
     
+    if (act === "toggle-completed-mine") { showCompletedMine = !showCompletedMine; render(); return; }
     if (act === "toggle-sync-setup") { showSyncSetup = !showSyncSetup; render(); return; }
     if (act === "sync-now") { syncAll(true); return; }
     if (act === "sync-off") { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(META_KEY); clearTimeout(syncTimer); sync = null; syncMeta = {}; syncState = { status: "off", msg: "", last: 0 }; flash("Sync turned off. Your data stays on this device."); return; }
