@@ -52,7 +52,8 @@ header {
   background-size: 56px 28px, 56px 28px; border-bottom: 1px solid var(--line);
   transition: background-color 0.3s, border-color 0.3s;
 }
-header .inner { max-width: var(--w); margin-inline: auto; }
+.avatar-mini { position: absolute; top: 0; right: 0; width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--surface); background: var(--accent) center / cover no-repeat; color: var(--accent-ink); font: 700 1rem var(--font-display); padding: 0; display: none; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+header .inner { position: relative; max-width: var(--w); margin-inline: auto; }
 .eyebrow { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 0; }
 h1 { font-family: var(--font-display); font-weight: 700; font-size: 2.4rem; line-height: 1.05; margin: 0.35rem 0 0.5rem; letter-spacing: -0.02em; text-wrap: balance; }
 .lede { margin: 0; color: var(--muted); max-width: 34rem; }
@@ -245,6 +246,7 @@ img, svg, video { max-width: 100%; }
     <p class="eyebrow" id="dateLine"></p>
     <h1>Just One</h1>
     <p class="lede" id="quoteLine"></p>
+    <button id="profileBtn" class="avatar-mini" data-act="open-profile" aria-label="My profile" title="My profile"></button>
   </div>
 </header>
 <main class="wrap" id="app" aria-live="polite"></main>
@@ -353,11 +355,11 @@ img, svg, video { max-width: 100%; }
   var session = loadJson(SKEY);
   var timer = loadJson(TKEY);
   var tab = "me";
-  var boardFilter = "house"; 
+  var boardFilter = "house";
   var showCompletedHouse = false;
   var showStats = false;
   var showChat = false;
-  var showCompletedMine = false;
+  var showCompletedMine = false, showUpcoming = false, showHistory = false, historyAll = false;
   var openRecipeId = ""; 
   var nudge = { text: "", busy: false };
   var ai = { busy: false, result: null, err: "", asked: "" };
@@ -384,14 +386,14 @@ img, svg, video { max-width: 100%; }
     { id: "b10", icon: "🏆", name: "Home Maker", desc: "Customize 3 personal chores.", check: function() { return me.chores.length >= 3; } }
   ];
 
-  function blankMe() { return { visits: [], done: {}, skip: {}, swap: {}, last: null, chores: [], timeLog: [], theme: "auto", kitchenMode: "house", kitchenGroupId: "", diet: { pref: "none", notes: "" } }; }
+  function blankMe() { return { visits: [], done: {}, skip: {}, swap: {}, last: null, chores: [], timeLog: [], doneLog: [], name: "", photo: "", theme: "auto", kitchenMode: "house", kitchenGroupId: "", diet: { pref: "none", notes: "" } }; }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function rawLocal() { try { var r = localStorage.getItem(KEY); if (r) return JSON.parse(r); } catch (e) {} return null; }
   
   function localLoadMe() { 
     var s = rawLocal(), m = blankMe(); 
     if (s) { 
-      ["visits", "done", "skip", "swap", "last", "chores", "timeLog", "theme", "kitchenMode", "kitchenGroupId", "diet"].forEach(function (k) { if (s[k] !== undefined) m[k] = s[k]; }); 
+      ["visits", "done", "skip", "swap", "last", "chores", "timeLog", "doneLog", "name", "photo", "theme", "kitchenMode", "kitchenGroupId", "diet"].forEach(function (k) { if (s[k] !== undefined) m[k] = s[k]; }); 
     } 
     m.kitchenGroupId = m.kitchenGroupId || Math.random().toString(36).substring(2, 6).toUpperCase();
     m.kitchenMode = m.kitchenMode || "house";
@@ -483,6 +485,21 @@ img, svg, video { max-width: 100%; }
       '<input id="nameInput" type="text" maxlength="20" placeholder="e.g. Samaah" value="' + esc(myName()) + '" autocomplete="given-name" style="width:100%;">' +
       '<button class="btn primary' + (big ? ' large' : '') + '" type="submit">' + btnText + '</button></form>';
   }
+  function historyCard() {
+    var log = (me.doneLog || []).slice().reverse(), n = log.length;
+    var head = '<section class="card"><h2>Completed task log</h2><p class="small">Finished personal tasks are filed here so your list stays clean. Nothing is lost.</p>';
+    if (!showHistory) return head + '<button class="btn quiet small" data-act="toggle-history">View log (' + n + ')</button></section>';
+    var shown = historyAll ? log : log.slice(0, 40), html = "", last = "";
+    shown.forEach(function (x) {
+      if (x.day !== last) { last = x.day; html += '<p class="label" style="margin:0.6rem 0 0.2rem;">' + esc(new Date(x.day + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })) + '</p>'; }
+      html += '<div style="display:flex;justify-content:space-between;gap:0.5rem;font-size:0.9rem;padding:0.3rem 0;border-bottom:1px solid var(--line);"><span>' + esc(x.text) + '</span><span class="small">' + esc(repLabel(x.rep || "once")) + '</span></div>';
+    });
+    if (!n) html = '<p class="note">Nothing finished yet.</p>';
+    return head + html + '<div class="row" style="margin-top:0.6rem;">' +
+      (n > 40 ? '<button class="btn quiet small" data-act="history-all">' + (historyAll ? 'Show fewer' : 'Show all ' + n) + '</button>' : '') +
+      (n ? '<button class="btn quiet small" data-act="history-clear">' + (confirmAct === "history-clear" ? "Sure?" : "Clear log") + '</button>' : '') +
+      '<button class="btn quiet small" data-act="toggle-history">Hide</button></div></section>';
+  }
   function nameCard() { return '<section class="card"><h2>Your name</h2><p class="small">Roommates see this on the board and in chat.</p>' + nameFormHtml("Save name") + '</section>'; }
   function nameGateView() {
     return '<section class="card" style="margin-top:1rem;"><h2>What should your roommates call you?</h2>' +
@@ -497,11 +514,25 @@ img, svg, video { max-width: 100%; }
   function curKey(rep) {
     if (rep === "daily") return dayKey(new Date());
     if (rep === "weekly") return weekKey(new Date());
+    if (dowOf(rep) >= 0) return "dow_" + occDay(dowOf(rep));
     if (String(rep).startsWith("custom:")) { var d = parseInt(rep.split(":")[1], 10) || 1; return "custom_" + d + "_" + Math.floor(Date.now() / 864e5 / d); }
     return "once";
   }
 
-  function repLabel(rep) { return String(rep).startsWith("custom:") ? "Every " + rep.split(":")[1] + " days" : rep; }
+  var DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var DOW_ORDER = [1, 2, 3, 4, 5, 6, 0];
+  function dowOf(rep) { return String(rep).indexOf("dow:") === 0 ? parseInt(String(rep).slice(4), 10) : -1; }
+  function occDay(n) { var d = new Date(); d.setDate(d.getDate() - ((d.getDay() - n + 7) % 7)); return dayKey(d); }
+  // A day-scheduled task only appears from its weekday onwards (and not before it was created).
+  function choreVisible(c) { var n = dowOf(c.repeat); return n < 0 ? true : occDay(n) >= (c.createdDay || "0000-00-00"); }
+  function nextDayLabel(c) { var n = dowOf(c.repeat); return n < 0 ? "" : DOW_NAMES[n] + "s"; }
+  function rollover() {
+    var today = dayKey(new Date()), before = me.chores.length;
+    me.chores = me.chores.filter(function (c) { return !(c.repeat === "once" && c.doneKey && c.doneDay && c.doneDay < today); });
+    if (me.chores.length !== before) saveMe();
+  }
+  function repLabel(rep) {
+    if (dowOf(rep) >= 0) return DOW_NAMES[dowOf(rep)] + "s"; return String(rep).startsWith("custom:") ? "Every " + rep.split(":")[1] + " days" : rep; }
   function choreDone(c) { return !!c.doneKey && c.doneKey === curKey(c.repeat); }
   function todaysTask(today) { var i = (dayNumber(new Date()) + (me.swap[today] || 0) * 7) % POOL.length; return POOL[((i % POOL.length) + POOL.length) % POOL.length]; }
   function newId() { return "c" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36); }
@@ -1024,7 +1055,7 @@ img, svg, video { max-width: 100%; }
       '</select></div>' +
       '<button class="btn primary" type="submit">Save Preferences</button></form></section>' +
       
-      nameCard() + homeSyncCard() + ((sync || showSyncSetup) ? syncCard() : '<section class="card"><h2>Advanced</h2><p class="small">Optional: sync your personal settings between your own devices through GitHub. Not needed for roommates or home sync.</p><button class="btn quiet small" data-act="toggle-sync-setup">Show GitHub sync</button></section>') + '<section class="card"><h2>Food & Diet</h2>' +
+      nameCard() + timeLogView() + historyCard() + homeSyncCard() + ((sync || showSyncSetup) ? syncCard() : '<section class="card"><h2>Advanced</h2><p class="small">Optional: sync your personal settings between your own devices through GitHub. Not needed for roommates or home sync.</p><button class="btn quiet small" data-act="toggle-sync-setup">Show GitHub sync</button></section>') + '<section class="card"><h2>Food & Diet</h2>' +
       '<p class="small">Tell the app how you eat. Meal ideas and AI suggestions will follow it.</p>' +
       '<form class="add stack" id="dietForm" novalidate>' +
         '<label class="label" for="dietSelect">Dietary preference</label>' +
@@ -1067,6 +1098,40 @@ img, svg, video { max-width: 100%; }
       '</div></section>';
   }
 
+  function resizePhoto(file, size) {
+    return new Promise(function (res, rej) {
+      var r = new FileReader();
+      r.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var c = document.createElement("canvas"); c.width = c.height = size;
+          var x = c.getContext("2d"), m = Math.min(img.width, img.height);
+          x.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, size, size);
+          res(c.toDataURL("image/jpeg", 0.82));
+        };
+        img.onerror = rej; img.src = r.result;
+      };
+      r.onerror = rej; r.readAsDataURL(file);
+    });
+  }
+  function updateProfileBtn() {
+    var b = document.getElementById("profileBtn"); if (!b) return;
+    b.style.display = "flex";
+    if (me.photo) { b.style.backgroundImage = "url(" + me.photo + ")"; b.textContent = ""; }
+    else { b.style.backgroundImage = "none"; b.textContent = initials(myName() || "Me"); }
+  }
+  function profileView() {
+    var big = me.photo
+      ? '<div role="img" aria-label="My photo" style="width:110px;height:110px;border-radius:50%;background:url(' + esc(me.photo) + ') center/cover;border:3px solid var(--surface);box-shadow:0 2px 10px rgba(0,0,0,0.15);"></div>'
+      : '<div class="avatar" style="width:110px;height:110px;font-size:2.2rem;">' + esc(initials(myName() || "Me")) + '</div>';
+    return '<section class="card" style="align-items:center;text-align:center;">' +
+      '<div class="row" style="width:100%;justify-content:space-between;"><h2>My profile</h2><button class="btn quiet small" data-act="toggle-stats">\u2190 Back</button></div>' +
+      big + '<p class="big" style="margin:0;">' + esc(myName() || "Me") + '</p>' +
+      '<div class="row" style="justify-content:center;"><label class="btn small primary" for="photoInput" style="display:inline-flex;align-items:center;">' + (me.photo ? "Change photo" : "Upload photo") + '</label>' +
+      '<input id="photoInput" type="file" accept="image/*" hidden>' +
+      (me.photo ? '<button class="btn quiet small" data-act="photo-rm">Remove</button>' : '') + '</div>' +
+      '<p class="small" style="margin:0;">Your photo is cropped to a circle and shown to roommates on the board.</p></section>';
+  }
   function profileCard() {
     return '<section class="card" style="flex-direction:row; align-items:center; gap:1rem; padding:1.2rem;">' +
       '<div class="avatar-wrap">' +
@@ -1121,8 +1186,9 @@ img, svg, video { max-width: 100%; }
   }
 
   function choresCard() {
-    var open = me.chores.filter(function (c) { return !choreDone(c); });
-    var closed = me.chores.filter(choreDone);
+    var vis = me.chores.filter(choreVisible), later = me.chores.filter(function (c) { return !choreVisible(c); });
+    var open = vis.filter(function (c) { return !choreDone(c); });
+    var closed = vis.filter(choreDone);
     var items = (showCompletedMine ? open.concat(closed) : open).map(function (c) {
       var d = choreDone(c), st = statLine(c.id, c.text);
       return '<li class="' + (d ? "is-done" : "") + '"><div class="main"><label><input type="checkbox" data-act="chore-toggle" data-id="' + esc(c.id) + '"' + (d ? " checked" : "") + '><span class="t">' + esc(c.text) + '</span></label>' +
@@ -1134,11 +1200,20 @@ img, svg, video { max-width: 100%; }
       return '<button class="chip add" data-act="chore-sug" data-text="' + esc(s.text) + '" data-rep="' + s.rep + '">+ ' + esc(s.text) + '</button>';
     }).join("");
     var list = items ? '<ul class="todo">' + items + '</ul>' : '<p class="note">' + (closed.length ? 'All done for now. 🎉' : 'Nothing yet. Add your own jobs below.') + '</p>';
+    if (later.length) {
+      list += '<div class="row"><button class="btn quiet small" data-act="toggle-upcoming">' + (showUpcoming ? 'Hide ' : 'Show ') + later.length + ' scheduled for later days</button></div>';
+      if (showUpcoming) list += '<ul class="todo">' + later.map(function (c) {
+        var dopts = DOW_ORDER.map(function (n) { return '<option value="dow:' + n + '"' + (dowOf(c.repeat) === n ? ' selected' : '') + '>' + DOW_NAMES[n] + 's</option>'; }).join("");
+        return '<li><div class="main"><span class="t">' + esc(c.text) + '</span><p class="sub">Appears every ' + esc(DOW_NAMES[dowOf(c.repeat)]) + '</p></div>' +
+          '<select data-act="chore-day" data-id="' + esc(c.id) + '" aria-label="Change day">' + dopts + '</select>' +
+          '<button class="x" data-act="chore-rm" data-id="' + esc(c.id) + '">&times;</button></li>';
+      }).join("") + '</ul>';
+    }
     if (closed.length) list += '<div class="row"><button class="btn quiet small" data-act="toggle-completed-mine">' + (showCompletedMine ? 'Hide ' : 'Show ') + closed.length + ' completed</button></div>';
     return '<section class="card" aria-labelledby="h-mine"><h2 id="h-mine">My list</h2>' +
-      '<p class="small">Private to you. Each job you finish is worth 1 point.</p>' + list +
+      '<p class="small">Private to you. Not part of any leaderboard.</p>' + list +
       '<form class="add" id="choreForm"><input id="choreInput" type="text" placeholder="Water the plant on my desk" autocomplete="off" maxlength="100">' +
-      '<select id="choreRep"><option value="weekly">Weekly</option><option value="daily">Daily</option><option value="once">Once</option><option value="custom:2">Every 2 days</option><option value="custom:3">Every 3 days</option><option value="custom:14">Every 2 weeks</option></select>' +
+      '<select id="choreRep"><option value="weekly">Weekly (any day)</option><option value="daily">Daily</option><option value="once">Once</option><optgroup label="Weekly, shown only on that day">' + DOW_ORDER.map(function (n) { return '<option value="dow:' + n + '">Every ' + DOW_NAMES[n] + '</option>'; }).join("") + '</optgroup><option value="custom:2">Every 2 days</option><option value="custom:3">Every 3 days</option><option value="custom:14">Every 2 weeks</option></select>' +
       '<button class="btn primary" type="submit">Add</button></form><p class="small" id="choreHint" aria-live="polite" style="margin:0;color:var(--accent);"></p>' + (sug ? '<div class="chips">' + sug + '</div>' : "") + '</section>';
   }
 
@@ -1313,10 +1388,11 @@ img, svg, video { max-width: 100%; }
       if (r.displayScore !== prev) { rank = i + 1; prev = r.displayScore; }
       var rankClass = rank === 1 ? "rank-1" : rank === 2 ? "rank-2" : rank === 3 ? "rank-3" : "rank-other";
       var nameText = esc(r.id === uid ? (myName() ? myName() + " (you)" : "You") : displayName(r.id)) + (r.id === uid ? ' <button class="btn quiet small" data-act="edit-name" style="margin-left:0.4rem;padding:0.1rem 0.5rem;" aria-label="Edit my name">✎ Edit</button>' : "");
+      var avPhoto = scores && scores[r.id] && scores[r.id].photo ? scores[r.id].photo : "";
       var avText = esc(initials(scores && scores[r.id] && scores[r.id].name ? scores[r.id].name : (r.id === uid ? "Me" : "Roommate")));
       
       return '<li class="' + rankClass + '">' +
-        '<div class="board-av">' + avText + '</div>' +
+        '<div class="board-av"' + (avPhoto ? ' style="background:url(' + esc(avPhoto) + ') center/cover;"' : '') + '>' + (avPhoto ? "" : avText) + '</div>' +
         '<div class="board-who"><span class="board-nm">' + nameText + '</span><span class="board-sub">' + esc(r.subText) + '</span></div>' +
         '<span class="board-score">' + pad(r.displayScore) + '</span></li>';
     }).join("");
@@ -1324,7 +1400,7 @@ img, svg, video { max-width: 100%; }
     var inviteCode = scores && scores._meta ? scores._meta.inviteCode : "ERROR";
     var filterChips = '<div class="chips" role="group" aria-label="Score category" style="margin-bottom:1rem;">' +
       '<button class="chip" data-act="bfilter" data-f="house" aria-pressed="' + (boardFilter === "house") + '">House</button>' +
-      '<button class="chip" data-act="bfilter" data-f="own" aria-pressed="' + (boardFilter === "own") + '">Own</button></div>';
+      '</div>';
 
     html += '<section class="card" aria-labelledby="h-board" style="border:none; background:transparent; padding:0;">' + 
       '<h2 id="h-board" style="margin-bottom:0.5rem; color:var(--ink);">LEADERBOARD</h2>' + filterChips + 
@@ -1483,7 +1559,7 @@ img, svg, video { max-width: 100%; }
       header.style.display = "none";
       document.getElementById("app").innerHTML = (flashMsg ? '<p class="banner" role="status">' + esc(flashMsg) + '</p>' : "") + safeRender(onboardingView);
     } else {
-      header.style.display = "block";
+      header.style.display = "block"; updateProfileBtn();
       var today = dayKey(new Date()), body;
       
       var needName = !(scores && scores[uid] && scores[uid].name);
@@ -1493,8 +1569,8 @@ img, svg, video { max-width: 100%; }
       else if (tab === "kitchen") body = safeRender(kitchenView);
       else if (tab === "settings") body = safeRender(settingsView);
       else {
-        if (showStats) { body = safeRender(profileCard) + safeRender(statsView); } 
-        else { body = safeRender(timerBanner) + safeRender(profileCard) + safeRender(function(){return taskCard(today)}) + safeRender(choresCard) + safeRender(timeLogView); }
+        if (showStats) { body = safeRender(profileView) + safeRender(nameCard) + safeRender(statsView); } 
+        else { body = safeRender(timerBanner) + safeRender(function(){return taskCard(today)}) + safeRender(choresCard); }
       }
       
       document.getElementById("app").innerHTML = needName ? ((flashMsg ? '<p class="banner" role="status">' + esc(flashMsg) + '</p>' : "") + body) : '<div class="shell">' + tabsBar() + '<div class="main">' + (flashMsg ? '<p class="banner" role="status">' + esc(flashMsg) + '</p>' : "") + body + '</div></div>';
@@ -1636,7 +1712,7 @@ img, svg, video { max-width: 100%; }
     }).catch(function (e) { ai.err = aiName() + " could not answer (" + str(e && e.message, 120) + "). Your saved recipes are listed above."; }).then(function () { ai.busy = false; render(); });
   }
 
-  function addChore(text, rep) { text = String(text || "").trim(); if (!text) return; me.chores.push({ id: newId(), text: text, repeat: rep || "weekly", doneKey: null }); saveMe(); render(); }
+  function addChore(text, rep) { text = String(text || "").trim(); if (!text) return; me.chores.push({ id: newId(), text: text, repeat: rep || "weekly", doneKey: null, createdDay: dayKey(new Date()) }); saveMe(); render(); }
   function addShared(text, area, pts) { text = String(text || "").trim(); if (!text) return; shared.push({ id: newId(), title: text, area: area || "Other", pts: pts, addedBy: uid, doneBy: null, doneDay: null, created: Date.now() }); saveSharedDB(); render(); }
   
   function addShopItems(items) {
@@ -1670,6 +1746,10 @@ img, svg, video { max-width: 100%; }
     if (!el || el.tagName === "INPUT") return;
     var act = el.getAttribute("data-act"), today = dayKey(new Date()), id = el.getAttribute("data-id");
     
+    if (act === "toggle-upcoming") { showUpcoming = !showUpcoming; render(); return; }
+    if (act === "toggle-history") { showHistory = !showHistory; render(); return; }
+    if (act === "history-all") { historyAll = !historyAll; render(); return; }
+    if (act === "history-clear") { if (confirmAct !== "history-clear") { confirmAct = "history-clear"; render(); return; } confirmAct = ""; me.doneLog = []; saveMe(); flash("Task history cleared."); return; }
     if (act === "toggle-completed-mine") { showCompletedMine = !showCompletedMine; render(); return; }
     if (act === "toggle-sync-setup") { showSyncSetup = !showSyncSetup; render(); return; }
     if (act === "sync-now") { syncAll(true); return; }
@@ -1727,6 +1807,8 @@ img, svg, video { max-width: 100%; }
       return;
     }
     if (act === "tab") { confirmAct = ""; recipeNote = ""; tab = el.getAttribute("data-tab"); showStats = false; showChat = false; pendingRm = ""; openRecipeId = ""; render(); return; }
+    if (act === "open-profile") { tab = "me"; showStats = true; showChat = false; render(); window.scrollTo(0, 0); return; }
+    if (act === "photo-rm") { me.photo = ""; if (scores && scores[uid]) { delete scores[uid].photo; saveSharedDB(); } saveMe(); render(); return; }
     if (act === "toggle-stats") { showStats = !showStats; render(); return; }
     if (act === "open-chat") { showChat = true; render(); return; }
     if (act === "close-chat") { showChat = false; render(); return; }
@@ -1797,11 +1879,25 @@ img, svg, video { max-width: 100%; }
   document.addEventListener("change", function (e) {
     var el = e.target; if (!el.getAttribute) return;
     var act = el.getAttribute("data-act"), id = el.getAttribute("data-id");
+    if (el.id === "photoInput" && el.files && el.files[0]) {
+      var pf = el.files[0];
+      resizePhoto(pf, 256).then(function (big) { return resizePhoto(pf, 72).then(function (small) {
+        me.photo = big; saveMe(); if (scores && scores[uid]) { scores[uid].photo = small; saveSharedDB(); } flash("Photo updated.");
+      }); }).catch(function () { flash("Could not read that photo. Try a JPG or PNG."); });
+      return;
+    }
+    if (act === "chore-day") { me.chores.forEach(function (c) { if (c.id === id) { c.repeat = el.value; c.doneKey = null; c.createdDay = dayKey(new Date()); } }); saveMe(); render(); return; }
     if (act === "chore-toggle") {
       me.chores.forEach(function (c) {
         if (c.id !== id) return; var key = curKey(c.repeat), eid = "p_" + c.id + "_" + key;
-        if (el.checked) { if (timer && timer.ref === c.id) stopTimer(true); c.doneKey = key; addEntry(eid, "p"); fireConfettiAndCheer(); } 
-        else { c.doneKey = null; removeEntry(eid); }
+        if (el.checked) {
+          if (timer && timer.ref === c.id) stopTimer(true);
+          c.doneKey = key; c.doneDay = dayKey(new Date());
+          me.doneLog = (me.doneLog || []).filter(function (x) { return x.id !== eid; });
+          me.doneLog.push({ id: eid, text: c.text, rep: c.repeat, day: c.doneDay, at: Date.now() });
+          if (me.doneLog.length > 1500) me.doneLog = me.doneLog.slice(-1500);
+          fireConfettiAndCheer();
+        } else { c.doneKey = null; c.doneDay = null; me.doneLog = (me.doneLog || []).filter(function (x) { return x.id !== eid; }); }
       }); saveMe(); render();
     } else if (act === "shop-toggle") {
       var s = byId(shopping, id); if (!s) return;
@@ -1893,6 +1989,11 @@ img, svg, video { max-width: 100%; }
   document.addEventListener("input", function (e) { if (e.target && (e.target.id === "choreInput" || e.target.id === "sharedInput")) updateHints(); });
   document.addEventListener("submit", function (e) { e.preventDefault(); handleForm(e.target.id); });
 
+  var lastDay = dayKey(new Date());
+  function dayTick() { var t = dayKey(new Date()); if (t !== lastDay) { lastDay = t; rollover(); render(); } }
+  rollover();
+  setInterval(dayTick, 30000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) dayTick(); });
   document.addEventListener("visibilitychange", function () { if (!document.hidden && showChat) render(); });
   setInterval(function () { if (syncOn() && showChat && !document.hidden) syncAll(false); }, 5000);
   render();
