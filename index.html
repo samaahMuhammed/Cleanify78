@@ -1055,6 +1055,20 @@ img, svg, video { max-width: 100%; }
   }
 
   /* ---------- views ---------- */
+  function createHomeView() {
+    return '<div class="landing">' +
+      '<h1>Just One</h1>' +
+      '<p class="tagline">Clean Home &middot; Clear Mind</p>' +
+      '<p class="small" style="text-align:center;color:var(--muted);">Signed in as <strong>' + esc(_googleDisplayName || "you") + '</strong></p>' +
+      '<div class="landing-box">' +
+        '<button class="btn primary large" data-act="create-home">Create a Home</button>' +
+        '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);"><hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">OR<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;"></div>' +
+        '<form id="onboardJoinForm" style="display:flex;flex-direction:column;gap:0.5rem;">' +
+          '<input id="onboardJoinInput" type="text" placeholder="Paste invite link" value="' + esc(inviteHash()) + '" style="text-align:center;padding:0.8rem;font-size:1.1rem;border:1px solid var(--line);border-radius:10px;" autocomplete="off">' +
+          '<button class="btn large" type="button" data-act="join-with-link">Join with Invite Link</button>' +
+        '</form>' +
+      '</div></div>';
+  }
   function onboardingView() {
     return '<div class="landing">' +
       '<h1>Just One</h1>' +
@@ -1614,7 +1628,7 @@ img, svg, video { max-width: 100%; }
 
 
   function render() {
-    if (!uid) { document.getElementById('app').innerHTML = safeRender(onboardingView); return; }
+    if (!uid) { document.getElementById("app").innerHTML = safeRender(onboardingView); return; }
     var inHouse = !!(scores && scores[uid] && scores._meta);
 
     var keep = {}, active = document.activeElement && document.activeElement.id;
@@ -1627,7 +1641,7 @@ img, svg, video { max-width: 100%; }
 
     if (!inHouse) {
       header.style.display = "none";
-      document.getElementById("app").innerHTML = (flashMsg ? '<p class="banner" role="status">' + esc(flashMsg) + '</p>' : "") + safeRender(onboardingView);
+      document.getElementById("app").innerHTML = (flashMsg ? '<p class="banner" role="status">' + esc(flashMsg) + '</p>' : "") + safeRender(uid ? createHomeView : onboardingView);
     } else {
       header.style.display = "block"; updateProfileBtn();
       var today = dayKey(new Date()), body;
@@ -2099,16 +2113,11 @@ img, svg, video { max-width: 100%; }
   /* Show loading until Firebase resolves */
   document.getElementById("app").innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:60vh;color:var(--muted);">Loading…</div>';
   var _booted = false;
-  /* Pick up redirect result (mobile sign-in) */
-  window._fbAuth.getRedirectResult().catch(function(err) {
-    if (err && err.code !== 'auth/no-current-user') flash("Sign-in error: " + (err.message||String(err)));
-  });
-  window._fbAuth.onAuthStateChanged(function(user) {
+  function bootApp(user) {
     if (user) {
       var legacy = localStorage.getItem("one-small-thing-uid");
       uid = user.uid;
       _googleDisplayName = (user.displayName||"").split(" ")[0]||"";
-      /* migrate old random uid scores to real auth uid */
       if (legacy && legacy !== uid && scores[legacy] && !scores[uid]) {
         scores[uid] = scores[legacy]; delete scores[legacy]; saveSharedDB();
       }
@@ -2119,6 +2128,18 @@ img, svg, video { max-width: 100%; }
     if (!_booted) { _booted = true; startTimers(); }
     render();
     if (syncOn()) syncAll(true);
+  }
+  /* getRedirectResult fires after a redirect sign-in; onAuthStateChanged alone
+     may fire with null before the redirect result is processed on some browsers */
+  window._fbAuth.getRedirectResult().then(function(result) {
+    if (result && result.user) {
+      bootApp(result.user);
+    }
+  }).catch(function(err) {
+    if (err && err.code !== 'auth/no-current-user') flash("Sign-in error: " + (err.message||String(err)));
+  });
+  window._fbAuth.onAuthStateChanged(function(user) {
+    bootApp(user);
   });
 })();
 </script>
