@@ -1628,6 +1628,7 @@ img, svg, video { max-width: 100%; }
 
 
   function render() {
+    if (!_authReady) return; /* still waiting for Firebase — keep the loading spinner */
     if (!uid) { document.getElementById("app").innerHTML = safeRender(onboardingView); return; }
     var inHouse = !!(scores && scores[uid] && scores._meta);
 
@@ -1852,6 +1853,7 @@ img, svg, video { max-width: 100%; }
       flash("Home sync turned off. Your data stays on this device."); return;
     }
     if (act === "google-sign-in") {
+      document.getElementById("app").innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:1rem;color:var(--muted);"><p>Redirecting to Google…</p></div>';
       var provider = new firebase.auth.GoogleAuthProvider();
       window._fbAuth.signInWithRedirect(provider);
       return;
@@ -2110,14 +2112,16 @@ img, svg, video { max-width: 100%; }
     document.addEventListener("visibilitychange", function () { if (!document.hidden) syncAll(false); });
     window.addEventListener("online", function () { syncAll(false); });
   }
-  /* Show loading until Firebase resolves */
+  /* Show loading spinner until Firebase resolves */
   document.getElementById("app").innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:60vh;color:var(--muted);">Loading…</div>';
   var _booted = false;
-  function bootApp(user) {
+  var _authReady = false; /* true once onAuthStateChanged fires at least once */
+
+  function applyUser(user) {
     if (user) {
       var legacy = localStorage.getItem("one-small-thing-uid");
       uid = user.uid;
-      _googleDisplayName = (user.displayName||"").split(" ")[0]||"";
+      _googleDisplayName = (user.displayName || "").split(" ")[0] || "";
       if (legacy && legacy !== uid && scores[legacy] && !scores[uid]) {
         scores[uid] = scores[legacy]; delete scores[legacy]; saveSharedDB();
       }
@@ -2125,21 +2129,14 @@ img, svg, video { max-width: 100%; }
     } else {
       uid = "";
     }
-    if (!_booted) { _booted = true; startTimers(); }
-    render();
-    if (syncOn()) syncAll(true);
   }
-  /* getRedirectResult fires after a redirect sign-in; onAuthStateChanged alone
-     may fire with null before the redirect result is processed on some browsers */
-  window._fbAuth.getRedirectResult().then(function(result) {
-    if (result && result.user) {
-      bootApp(result.user);
-    }
-  }).catch(function(err) {
-    if (err && err.code !== 'auth/no-current-user') flash("Sign-in error: " + (err.message||String(err)));
-  });
+
   window._fbAuth.onAuthStateChanged(function(user) {
-    bootApp(user);
+    applyUser(user);
+    if (!_booted) { _booted = true; startTimers(); }
+    _authReady = true;
+    render();
+    if (uid && syncOn()) syncAll(true);
   });
 })();
 </script>
