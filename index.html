@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
 <title>Just One</title>
+<script>
+  /* Apply saved theme immediately to avoid flash of light background */
+  (function(){try{var m=JSON.parse(localStorage.getItem("one-small-thing-v1")||"{}");var t=m.theme||"dark";if(t==="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",t);}catch(e){document.documentElement.setAttribute("data-theme","dark");}})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap">
@@ -386,7 +391,7 @@ img, svg, video { max-width: 100%; }
     { id: "b10", icon: "🏆", name: "Home Maker", desc: "Customize 3 personal chores.", check: function() { return me.chores.length >= 3; } }
   ];
 
-  function blankMe() { return { visits: [], done: {}, skip: {}, swap: {}, last: null, chores: [], timeLog: [], doneLog: [], name: "", photo: "", theme: "auto", kitchenMode: "house", kitchenGroupId: "", diet: { pref: "none", notes: "" } }; }
+  function blankMe() { return { visits: [], done: {}, skip: {}, swap: {}, last: null, chores: [], timeLog: [], doneLog: [], name: "", photo: "", theme: "dark", kitchenMode: "house", kitchenGroupId: "", diet: { pref: "none", notes: "" } }; }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function rawLocal() { try { var r = localStorage.getItem(KEY); if (r) return JSON.parse(r); } catch (e) {} return null; }
   
@@ -432,7 +437,7 @@ img, svg, video { max-width: 100%; }
   }
 
   function applyTheme() {
-    var t = me.theme || "auto";
+    var t = me.theme || "dark";
     if (t === "auto") document.documentElement.removeAttribute("data-theme");
     else document.documentElement.setAttribute("data-theme", t);
   }
