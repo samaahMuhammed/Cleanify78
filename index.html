@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 /* Layout & Theme Variables */
 :root {
@@ -63,6 +64,27 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: 2.4rem; line
 .landing h1 { font-size: 4rem; margin-bottom: 0.2rem; color: var(--accent); }
 .landing .tagline { font-family: var(--font-display); font-size: 1.2rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-bottom: 3rem; font-weight: 600; }
 .landing-box { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 2rem; width: 100%; max-width: 24rem; display:flex; flex-direction:column; gap: 1.5rem; box-shadow: 0 8px 24px rgba(0,0,0,0.04); }
+
+/* Google Sign-In Button & Pill */
+.btn-google {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.65rem;
+  min-height: 46px; padding: 0.6rem 1.1rem; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  font-weight: 600; font-size: 0.98rem; width: 100%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.btn-google:hover { background: var(--soft); border-color: var(--accent); }
+.btn-google svg { width: 20px; height: 20px; flex-shrink: 0; }
+.google-pill {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.65rem 0.85rem; border-radius: 12px; background: var(--soft); border: 1px solid var(--line);
+  text-align: left;
+}
+.google-pill-info { display: flex; align-items: center; gap: 0.65rem; min-width: 0; flex: 1; }
+.google-pill-av { width: 36px; height: 36px; border-radius: 50%; background: var(--accent) center/cover no-repeat; color: var(--accent-ink); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; font-size: 0.85rem; }
+.google-pill-text { min-width: 0; flex: 1; line-height: 1.25; }
+.google-pill-name { font-weight: 600; font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.google-pill-email { font-size: 0.76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 
 /* Components */
 .tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 4px; background: var(--soft); border-radius: 12px; }
@@ -251,8 +273,24 @@ img, svg, video { max-width: 100%; }
 </header>
 <main class="wrap" id="app" aria-live="polite"></main>
 
+<script type="module">
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+window.__fbAuthModule = { initializeApp, getApps, getAuth, GoogleAuthProvider, signInWithPopup };
+</script>
+
 <script>
 (function () {
+  /* ---------- DEFAULT DATABASE & GOOGLE SIGN-IN CONFIG ---------- */
+  // Default Firebase Realtime Database used by all homes out of the box:
+  var DEFAULT_DB_URL = "https://just-one-8f109-default-rtdb.firebaseio.com";
+  // Optional: Paste your Google OAuth Client ID (ending in .apps.googleusercontent.com) or Firebase Web API Key (starting with AIza...)
+  // here in the code so nobody ever has to enter it, OR set it once in the UI and save it to the database for everyone!
+  var DEFAULT_GOOGLE_CLIENT_ID = "";
+  var DEFAULT_FIREBASE_API_KEY = "";
+  var FIREBASE_PROJECT_ID = "just-one-8f109";
+  var FIREBASE_AUTH_DOMAIN = "just-one-8f109.firebaseapp.com";
+
   var KEY = "one-small-thing-v1";
   var SKEY = "one-small-thing-session";
   var TKEY = "one-small-thing-timer";
@@ -261,6 +299,8 @@ img, svg, video { max-width: 100%; }
   var DB_SCORES = "one-small-thing-db-scores";
   var DB_CHAT = "one-small-thing-db-chat";
   var DB_HOUSE_RECIPES = "one-small-thing-db-recipes";
+  var GOOGLE_USER_KEY = "one-small-thing-google-user";
+  var GOOGLE_CFG_KEY = "one-small-thing-google-cfg";
   
   var QUOTES = [
     "A home that stays clear, one easy job at a time. Skip any of it, nothing breaks.",
@@ -340,7 +380,9 @@ img, svg, video { max-width: 100%; }
   var sync = loadJson(SYNC_KEY);
   var syncMeta = loadJson(META_KEY) || {};
   var syncState = { status: sync ? "idle" : "off", msg: "", last: 0 };
-  var syncTimer = null, syncing = false, PREF_REMOTE = false, showSyncSetup = false;
+  var syncTimer = null, syncing = false, PREF_REMOTE = false, showSyncSetup = false, showDbEdit = false, showGoogleSetup = false;
+  var googleUser = loadJson(GOOGLE_USER_KEY) || null;
+  var googleCfg = loadJson(GOOGLE_CFG_KEY) || {};
   
   var me = localLoadMe();
   saveMe();
@@ -523,7 +565,6 @@ img, svg, video { max-width: 100%; }
   var DOW_ORDER = [1, 2, 3, 4, 5, 6, 0];
   function dowOf(rep) { return String(rep).indexOf("dow:") === 0 ? parseInt(String(rep).slice(4), 10) : -1; }
   function occDay(n) { var d = new Date(); d.setDate(d.getDate() - ((d.getDay() - n + 7) % 7)); return dayKey(d); }
-  // A day-scheduled task only appears from its weekday onwards (and not before it was created).
   function choreVisible(c) { var n = dowOf(c.repeat); return n < 0 ? true : occDay(n) >= (c.createdDay || "0000-00-00"); }
   function nextDayLabel(c) { var n = dowOf(c.repeat); return n < 0 ? "" : DOW_NAMES[n] + "s"; }
   function rollover() {
@@ -541,7 +582,6 @@ img, svg, video { max-width: 100%; }
 
   /* ---------- time tracking ---------- */
   function normName(t) { return String(t || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim(); }
-  // Matches by task id OR by the same task name, so a retyped or re-added task still remembers past timings.
   function timeStats(ref, name) {
     var nn = normName(name);
     var arr = me.timeLog.filter(function (x) { return (ref && x.ref === ref) || (nn && normName(x.name) === nn); });
@@ -626,11 +666,7 @@ img, svg, video { max-width: 100%; }
     return rows;
   }
 
-  /* ---------- GITHUB SYNC ----------
-     Shared house data  -> data/house.json
-     Personal data      -> data/me-<profileId>.json
-     The GitHub repo is the cloud. Every change is merged (3-way, by id) with whatever is
-     already in the repo, so two devices editing at once never overwrite each other. */
+  /* ---------- GITHUB SYNC ---------- */
   var syncInflight = Promise.resolve(), syncQueued = null;
 
   function canon(v) {
@@ -742,14 +778,15 @@ img, svg, video { max-width: 100%; }
     return { sha: j.content && j.content.sha };
   }
 
-  /* ---------- HOME SYNC (invite link, no accounts for roommates) ----------
-     House data is AES-GCM encrypted on this device, then stored in one record of a Firebase Realtime Database.
-     The invite link holds the record id + the key + the database address after a "#", which browsers never send to any server. */
+  /* ---------- HOME SYNC & DEFAULT DATABASE ----------
+     All homes now use https://just-one-8f109-default-rtdb.firebaseio.com by default!
+     House data is AES-GCM encrypted on this device before upload. */
   var RELAY_KEY = "one-small-thing-relay", DB_URL_KEY = "one-small-thing-db";
   var relay = loadJson(RELAY_KEY), relayErr = "";
-  if (relay && !relay.host) { relay = null; try { localStorage.removeItem(RELAY_KEY); } catch (e) {} }
-  function syncOn() { return !!(sync || relay); }
-  function dbUrl() { try { return localStorage.getItem(DB_URL_KEY) || ""; } catch (e) { return ""; } }
+  if (relay && !relay.host) { relay.host = DEFAULT_DB_URL; saveJson(RELAY_KEY, relay); }
+  function syncOn() { return !!(sync || relay || googleUser); }
+  function customDbUrl() { try { return localStorage.getItem(DB_URL_KEY) || ""; } catch (e) { return ""; } }
+  function dbUrl() { return customDbUrl() || DEFAULT_DB_URL; }
   function cleanDb(t) {
     t = String(t || "").trim().replace(/\/+$/, "").replace(/\.json$/i, "");
     if (t && !/^https?:\/\//i.test(t)) t = "https://" + t;
@@ -771,11 +808,11 @@ img, svg, video { max-width: 100%; }
       return JSON.parse(new TextDecoder().decode(pt));
     } catch (e) { throw new Error("Could not unlock this home. Check the invite link."); }
   }
-  function rUrl(host, id) { return host.replace(/\/+$/, "") + "/homes/" + encodeURIComponent(id) + ".json"; }
+  function rUrl(host, id) { return (host || dbUrl()).replace(/\/+$/, "") + "/homes/" + encodeURIComponent(id) + ".json"; }
   async function rFetch(url, opts) {
     var res;
     try { res = await fetch(url, opts); } catch (e) { throw new Error("Can't reach the database. Check the address and your connection."); }
-    if (res.status === 401 || res.status === 403) throw new Error("The database refused access. Check the Rules tab in Firebase (see setup steps).");
+    if (res.status === 401 || res.status === 403) throw new Error("The database refused access. Ensure Firebase Realtime Database Rules allow read/write on /homes.");
     if (!res.ok) throw new Error("The database had a problem (" + res.status + ").");
     return res;
   }
@@ -785,25 +822,25 @@ img, svg, video { max-width: 100%; }
     return id;
   }
   async function relayGet() {
-    var res = await rFetch(rUrl(relay.host, relay.id) + "?_=" + Date.now(), { cache: "no-store" });
+    var res = await rFetch(rUrl(relay.host || dbUrl(), relay.id) + "?_=" + Date.now(), { cache: "no-store" });
     var pack = await res.json();
     if (!pack || !pack.ct) throw new Error("This home's cloud copy was not found.");
     var data = await rDec(pack, relay.key);
     return { sha: hashOf(data), data: data };
   }
   async function relayPut(obj) {
-    await rFetch(rUrl(relay.host, relay.id), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(await rEnc(obj, relay.key)) });
+    await rFetch(rUrl(relay.host || dbUrl(), relay.id), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(await rEnc(obj, relay.key)) });
     return { sha: hashOf(obj) };
   }
   async function startRelay() {
     relayErr = "";
     try {
       var host = dbUrl();
-      if (!host) throw new Error("Add your database address in Settings → Home sync first.");
       var key = newRelayKey(), data = snap("shared"), id = await relayCreate(data, key, host);
       relay = { id: id, key: key, host: host }; saveJson(RELAY_KEY, relay);
       syncMeta.sharedRelay = { sha: hashOf(data), base: clone(data) }; saveMeta();
       syncState = { status: "ok", msg: "", last: Date.now() };
+      if (googleUser) syncGoogleProfileToDb(false);
       return true;
     } catch (e) { relayErr = str(e && e.message, 200); return false; }
   }
@@ -815,23 +852,45 @@ img, svg, video { max-width: 100%; }
     if (d) { try { host = cleanDb(decodeURIComponent(d[1])); } catch (e) {} }
     return { id: m[1], key: m[2], host: host || dbUrl() };
   }
-  function inviteLink() { return relay ? location.href.split("#")[0] + "#join=" + relay.id + "." + relay.key + "&db=" + encodeURIComponent(relay.host) : ""; }
+  function inviteLink() {
+    if (!relay) return "";
+    var base = location.href.split("#")[0] + "#join=" + relay.id + "." + relay.key;
+    var host = relay.host || dbUrl();
+    return host === DEFAULT_DB_URL ? base : base + "&db=" + encodeURIComponent(host);
+  }
   function inviteHash() { try { return (location.hash || "").indexOf("join=") >= 0 ? location.hash.replace(/^#/, "") : ""; } catch (e) { return ""; } }
-  function copyText(t) { return (navigator.clipboard && navigator.clipboard.writeText) ? navigator.clipboard.writeText(t).then(function () { return true; }, function () { return false; }) : Promise.resolve(false); }
+  function copyText(t) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(t).then(function () { return true; }, function () { return fallbackCopy(t); });
+    }
+    return Promise.resolve(fallbackCopy(t));
+  }
+  function fallbackCopy(t) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (e) { return false; }
+  }
   async function joinRelay(inv, name) {
     var prev = relay;
     try {
-      if (!inv.host) throw new Error("This invite has no database address. Ask for a fresh invite link.");
-      relay = { id: inv.id, key: inv.key, host: inv.host };
+      var host = inv.host || dbUrl();
+      relay = { id: inv.id, key: inv.key, host: host };
       var r = await relayGet(), d = normShared(r.data);
       if (!d.scores || !d.scores._meta) throw new Error("That invite doesn't look like a home.");
       applySnap("shared", d);
       me.name = name; saveMe();
       scores[uid] = scores[uid] || { joined: Date.now(), entries: {} };
       scores[uid].name = name;
+      if (me.photo) scores[uid].photo = me.photo;
       saveJson(RELAY_KEY, relay);
       syncMeta.sharedRelay = { sha: r.sha, base: clone(d) }; saveMeta();
       saveSharedDB();
+      if (googleUser) syncGoogleProfileToDb(false);
       try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
       flash("Joined! Welcome, " + name + ".");
       syncAll(true);
@@ -839,36 +898,300 @@ img, svg, video { max-width: 100%; }
   }
   function inviteHtml() {
     if (relay) return '<p class="small" style="margin-bottom:1.5rem;">Invite roommates: <button class="btn small" data-act="copy-invite">Copy invite link</button></p>';
-    return '<p class="small" style="margin-bottom:1.5rem;">Roommates on other phones can\'t join yet. <button class="btn small" data-act="relay-on">Set up home sync</button></p>';
+    return '<p class="small" style="margin-bottom:1.5rem;">Roommates on other phones can\'t join yet. <button class="btn small" data-act="relay-on">Turn on home sync</button></p>';
   }
   function homeSyncCard() {
     if (!(scores && scores._meta)) return "";
+    var host = dbUrl();
+    var isDefault = host === DEFAULT_DB_URL;
+    var err = relayErr ? '<p class="say">' + esc(relayErr) + '</p>' : '';
+
+    var dbEditorHtml = "";
+    if (showDbEdit) {
+      dbEditorHtml = '<form class="add stack" id="dbForm" style="margin-top:0.5rem;" novalidate>' +
+        '<label class="label" for="dbInput">Firebase Realtime Database URL</label>' +
+        '<input id="dbInput" type="text" value="' + esc(host) + '" placeholder="' + esc(DEFAULT_DB_URL) + '" autocomplete="off" style="width:100%;">' +
+        '<div class="row">' +
+          '<button class="btn primary small" type="submit">Save database URL</button>' +
+          (!isDefault ? '<button class="btn small" type="button" data-act="db-reset">Reset to default DB</button>' : '') +
+          '<button class="btn quiet small" type="button" data-act="db-cancel">Cancel</button>' +
+        '</div></form>';
+    }
+
     if (relay) {
       var st = syncState.status === "syncing" ? "Syncing…" : syncState.status === "error" ? "Problem: " + syncState.msg : syncState.status === "offline" ? "Offline. It will sync when you are back online." : syncState.last ? "Up to date (checked " + new Date(syncState.last).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + ")" : "Connecting…";
-      return '<section class="card"><h2>Home sync</h2><p class="small">On. Roommates with your invite link stay in step with you. The data is encrypted before it leaves your device.</p>' +
+      return '<section class="card"><h2>Home sync (Default Cloud DB)</h2><p class="small">On. Roommates with your invite link stay in step with you. Data is encrypted before it leaves your device.</p>' +
+        '<p class="small">Database: <strong>' + esc(relay.host || host) + '</strong> ' + (isDefault ? '<span class="tag">Default</span>' : '<span class="tag">Custom</span>') + ' <button class="btn quiet small" data-act="db-change" type="button">Change</button></p>' +
+        dbEditorHtml +
         '<p class="' + (syncState.status === "error" ? "say" : "small") + '">' + esc(st) + '</p>' +
         '<div class="row"><button class="btn primary small" data-act="copy-invite">Copy invite link</button><button class="btn quiet small" data-act="sync-now">Sync now</button>' +
         '<button class="btn quiet small" data-act="relay-off">' + (confirmAct === "relay-off" ? "Sure?" : "Turn off") + '</button></div></section>';
     }
-    var host = dbUrl();
-    var err = relayErr ? '<p class="say">' + esc(relayErr) + '</p>' : '';
-    if (host) {
-      return '<section class="card"><h2>Home sync</h2><p class="small">Let roommates join from their own phones with a link. No accounts or setup for them. Your home is encrypted before it is uploaded.</p>' + err +
-        '<p class="small">Database: <strong>' + esc(host) + '</strong> <button class="btn quiet small" data-act="db-change" type="button">Change</button></p>' +
-        '<button class="btn primary" data-act="relay-on">Turn on home sync</button></section>';
+
+    return '<section class="card"><h2>Home sync (Default Cloud DB)</h2>' +
+      '<p class="small">Let roommates join from their own phones with a link. Your default database is pre-configured for all homes and encrypted before upload.</p>' + err +
+      '<p class="small">Database: <strong>' + esc(host) + '</strong> ' + (isDefault ? '<span class="tag">Default</span>' : '<span class="tag">Custom</span>') + ' <button class="btn quiet small" data-act="db-change" type="button">Change</button></p>' +
+      dbEditorHtml +
+      '<button class="btn primary" data-act="relay-on">Turn on home sync</button></section>';
+  }
+
+  /* ---------- GOOGLE SIGN-IN & CLOUD PROFILE SYNC ----------
+     Supports both:
+     1) Firebase Auth popup (using Firebase Web API key for project just-one-8f109)
+     2) Google Identity Services OAuth / ID Token (using Google OAuth Client ID)
+     Also syncs the user's personal profile + active home relay link to
+     https://just-one-8f109-default-rtdb.firebaseio.com/users/<googleUid>.json
+     so signing in with Google on any device restores their account and home! */
+
+  function googleIconSvg() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.13-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z"/></svg>';
+  }
+
+  function getGoogleClientId() {
+    return (googleCfg && googleCfg.clientId) || DEFAULT_GOOGLE_CLIENT_ID || "";
+  }
+  function getFirebaseApiKey() {
+    return (googleCfg && googleCfg.apiKey) || DEFAULT_FIREBASE_API_KEY || "";
+  }
+
+  // Try loading shared Google Auth config from the default RTDB (/config/googleAuth.json)
+  // so once you save your Client ID or Firebase API key once, every device using this repo gets it automatically!
+  async function loadRemoteGoogleConfig() {
+    try {
+      var res = await fetch(dbUrl().replace(/\/+$/, "") + "/config/googleAuth.json?_=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) return;
+      var data = await res.json();
+      if (data && (data.clientId || data.apiKey)) {
+        googleCfg = { clientId: data.clientId || googleCfg.clientId || "", apiKey: data.apiKey || googleCfg.apiKey || "" };
+        saveJson(GOOGLE_CFG_KEY, googleCfg);
+      }
+    } catch (e) {}
+  }
+  loadRemoteGoogleConfig();
+
+  async function saveRemoteGoogleConfig(cfg) {
+    try {
+      await fetch(dbUrl().replace(/\/+$/, "") + "/config/googleAuth.json", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cfg)
+      });
+    } catch (e) {}
+  }
+
+  function userDbUrl(gUid) {
+    return dbUrl().replace(/\/+$/, "") + "/users/" + encodeURIComponent(gUid) + ".json";
+  }
+
+  async function syncGoogleProfileToDb(pullFirst) {
+    if (!googleUser || !googleUser.uid) return false;
+    var gUid = googleUser.uid;
+    try {
+      if (pullFirst) {
+        var res = await fetch(userDbUrl(gUid) + "?_=" + Date.now(), { cache: "no-store" });
+        if (res.ok) {
+          var remote = await res.json();
+          if (remote && typeof remote === "object") {
+            if (remote.me) {
+              var mergedMe = merge3(syncMeta.googleMeBase || blankMe(), normalizeMe(me), normalizeMe(remote.me));
+              me = normalizeMe(mergedMe);
+              if (googleUser.name && !me.name) me.name = googleUser.name;
+              if (googleUser.picture && !me.photo) me.photo = googleUser.picture;
+              saveJson(KEY, me);
+              applyTheme();
+              syncMeta.googleMeBase = clone(me);
+              saveMeta();
+            }
+            // If this device is not in a home yet, but their Google account has an active home relay, join it automatically!
+            if (!relay && remote.relay && remote.relay.id && remote.relay.key) {
+              await joinRelay(remote.relay, me.name || googleUser.name || "Roommate");
+              return true;
+            }
+          }
+        }
+      }
+      var payload = {
+        updatedAt: Date.now(),
+        profile: { uid: gUid, name: me.name || googleUser.name || "", email: googleUser.email || "", picture: me.photo || googleUser.picture || "" },
+        me: normalizeMe(me),
+        relay: relay || null
+      };
+      await fetch(userDbUrl(gUid), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      syncMeta.googleMeBase = clone(me);
+      saveMeta();
+      return true;
+    } catch (e) {
+      return false;
     }
-    return '<section class="card"><h2>Home sync: one-time setup</h2>' +
-      '<p class="small">This takes about 5 minutes, once, on one device. Roommates never do this.</p>' +
-      '<ol class="small" style="margin:0 0 0 1.1rem; padding:0; display:flex; flex-direction:column; gap:0.35rem;">' +
-      '<li>Open <strong>console.firebase.google.com</strong>, sign in with Google, press <strong>Create a project</strong>, name it anything, turn Google Analytics off, press Create.</li>' +
-      '<li>Left menu: <strong>Build → Realtime Database → Create Database</strong>. Pick any location, choose <strong>locked mode</strong>, press Enable.</li>' +
-      '<li>Open the <strong>Rules</strong> tab, replace everything with the text below, press <strong>Publish</strong>.</li>' +
-      '</ol>' +
-      '<pre style="margin:0; padding:0.6rem 0.7rem; background:var(--bg); border:1px solid var(--line); border-radius:10px; font-size:0.8rem; overflow-x:auto; user-select:all;">{ "rules": { "homes": { "$id": { ".read": true, ".write": true } } } }</pre>' +
-      '<ol class="small" start="4" style="margin:0 0 0 1.1rem; padding:0; display:flex; flex-direction:column; gap:0.35rem;">' +
-      '<li>Open the <strong>Data</strong> tab and copy the web address at the top. It looks like <em>https://something-default-rtdb.firebaseio.com</em>.</li>' +
-      '<li>Paste it below and save.</li></ol>' + err +
-      '<form class="add stack" id="dbForm" novalidate><input id="dbInput" type="text" placeholder="https://your-project-default-rtdb.firebaseio.com" autocomplete="off" style="width:100%;"><button class="btn primary" type="submit">Save database address</button></form></section>';
+  }
+
+  async function applyGoogleSignIn(profile) {
+    // profile: { sub, name, given_name, email, picture }
+    var gUid = "g_" + String(profile.sub || profile.uid || "").replace(/[^A-Za-z0-9_-]/g, "");
+    if (!gUid || gUid === "g_") { flash("Could not read Google account ID."); return; }
+
+    var oldUid = uid;
+    googleUser = {
+      uid: gUid,
+      sub: profile.sub || profile.uid,
+      name: str(profile.given_name || profile.name || "Roommate", 20).trim(),
+      fullName: str(profile.name || "", 60).trim(),
+      email: str(profile.email || "", 100).trim(),
+      picture: profile.picture || ""
+    };
+    saveJson(GOOGLE_USER_KEY, googleUser);
+
+    // Migrate local scores entry if user was already in a home under an anonymous uid
+    if (oldUid !== gUid && scores && scores[oldUid]) {
+      scores[gUid] = scores[gUid] || scores[oldUid];
+      delete scores[oldUid];
+      shared.forEach(function (c) { if (c.doneBy === oldUid) c.doneBy = gUid; if (c.addedBy === oldUid) c.addedBy = gUid; });
+      shopping.forEach(function (s) { if (s.boughtBy === oldUid) s.boughtBy = gUid; if (s.addedBy === oldUid) s.addedBy = gUid; });
+      chat.forEach(function (m) { if (m.uid === oldUid) m.uid = gUid; });
+      if (chatReads[oldUid]) { chatReads[gUid] = chatReads[oldUid]; delete chatReads[oldUid]; }
+    }
+
+    uid = gUid;
+    localStorage.setItem("one-small-thing-uid", uid);
+
+    if (!me.name && googleUser.name) me.name = googleUser.name;
+    if (!me.photo && googleUser.picture) me.photo = googleUser.picture;
+    saveMe();
+
+    if (scores && scores[uid]) {
+      if (me.name) scores[uid].name = me.name;
+      if (me.photo) scores[uid].photo = me.photo;
+      saveSharedDB();
+    }
+
+    flash("Signed in as " + (googleUser.fullName || googleUser.email || googleUser.name) + "!");
+    await syncGoogleProfileToDb(true);
+    if (syncOn()) syncAll(true);
+    render();
+  }
+
+  async function triggerGoogleSignIn() {
+    var apiKey = getFirebaseApiKey();
+    var clientId = getGoogleClientId();
+
+    // 1. Prefer Firebase Auth signInWithPopup if Firebase Web API Key is configured
+    if (apiKey && window.__fbAuthModule) {
+      try {
+        var fb = window.__fbAuthModule;
+        var fbConfig = {
+          apiKey: apiKey,
+          authDomain: FIREBASE_AUTH_DOMAIN,
+          databaseURL: dbUrl(),
+          projectId: FIREBASE_PROJECT_ID
+        };
+        var app = fb.getApps().length ? fb.getApps()[0] : fb.initializeApp(fbConfig);
+        var auth = fb.getAuth(app);
+        var provider = new fb.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+        var result = await fb.signInWithPopup(auth, provider);
+        var u = result.user;
+        await applyGoogleSignIn({
+          uid: u.uid,
+          name: u.displayName || (u.email ? u.email.split("@")[0] : "Roommate"),
+          given_name: u.displayName ? u.displayName.split(" ")[0] : "",
+          email: u.email || "",
+          picture: u.photoURL || ""
+        });
+        return;
+      } catch (e) {
+        if (e && (e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request")) return;
+        if (!clientId) {
+          showGoogleSetup = true;
+          flash("Google Sign-In error: " + str(e && e.message, 140));
+          render();
+          return;
+        }
+      }
+    }
+
+    // 2. Or use Google Identity Services OAuth Token Client if Google Client ID is configured
+    if (clientId && window.google && window.google.accounts && window.google.accounts.oauth2) {
+      try {
+        var tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: "openid email profile",
+          callback: async function (resp) {
+            if (resp.error) { flash("Google Sign-In cancelled."); return; }
+            try {
+              var infoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+                headers: { Authorization: "Bearer " + resp.access_token }
+              });
+              var profile = await infoRes.json();
+              await applyGoogleSignIn(profile);
+            } catch (err) {
+              flash("Could not fetch Google profile.");
+            }
+          }
+        });
+        tokenClient.requestAccessToken({ prompt: "select_account" });
+        return;
+      } catch (e) {
+        flash("Google Sign-In error: " + str(e && e.message, 120));
+        return;
+      }
+    }
+
+    // 3. If neither key is set yet, open the inline 1-time Google Setup box
+    showGoogleSetup = true;
+    flash("One-time setup: paste your Firebase Web API Key or Google OAuth Client ID below to enable Google Sign-In.");
+    render();
+  }
+
+  function signOutGoogle() {
+    googleUser = null;
+    localStorage.removeItem(GOOGLE_USER_KEY);
+    flash("Signed out of Google on this device.");
+    render();
+  }
+
+  function googleSetupFormHtml() {
+    if (!showGoogleSetup) return "";
+    return '<div style="background:var(--soft); border:1px solid var(--line); border-radius:12px; padding:0.9rem; text-align:left; margin-top:0.4rem;">' +
+      '<p class="label" style="margin-bottom:0.25rem;">Connect Google Sign-In (One-Time Project Setup)</p>' +
+      '<p class="small" style="margin-bottom:0.6rem;">In your <strong>just-one-8f109</strong> Firebase Console:<br>' +
+      '1. Go to <strong>Authentication &rarr; Sign-in method</strong> and enable <strong>Google</strong>.<br>' +
+      '2. Go to <strong>Project Settings (⚙️) &rarr; General</strong> and copy your <strong>Web API Key</strong> (starts with <code>AIza...</code>), or paste a Google OAuth Client ID.</p>' +
+      '<form class="add stack" id="googleCfgForm" novalidate>' +
+        '<input id="googleApiKeyInput" type="text" placeholder="Firebase Web API Key (AIzaSy...)" value="' + esc(getFirebaseApiKey()) + '" autocomplete="off">' +
+        '<input id="googleClientIdInput" type="text" placeholder="OR Google Client ID (...apps.googleusercontent.com)" value="' + esc(getGoogleClientId()) + '" autocomplete="off">' +
+        '<div class="row">' +
+          '<button class="btn primary small" type="submit">Save & Sign in with Google</button>' +
+          '<button class="btn quiet small" type="button" data-act="google-setup-close">Cancel</button>' +
+        '</div>' +
+      '</form></div>';
+  }
+
+  function googleAccountBoxHtml(compact) {
+    if (googleUser) {
+      var avStyle = googleUser.picture ? ' style="background-image:url(' + esc(googleUser.picture) + ');"' : '';
+      var avTxt = googleUser.picture ? '' : esc(initials(googleUser.name || "G"));
+      return '<div class="google-pill">' +
+        '<div class="google-pill-info">' +
+          '<div class="google-pill-av"' + avStyle + '>' + avTxt + '</div>' +
+          '<div class="google-pill-text">' +
+            '<span class="google-pill-name">' + esc(googleUser.fullName || googleUser.name) + '</span>' +
+            '<span class="google-pill-email">' + esc(googleUser.email || "Connected with Google") + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<button class="btn quiet small" type="button" data-act="google-signout">Sign out</button>' +
+      '</div>';
+    }
+    return '<div>' +
+      '<button class="btn-google" type="button" data-act="google-signin">' +
+        googleIconSvg() + '<span>Continue with Google</span>' +
+      '</button>' +
+      (!compact ? '<div style="text-align:right; margin-top:0.25rem;"><button class="btn quiet small" type="button" data-act="google-setup-toggle" style="font-size:0.75rem; padding:0.15rem 0.4rem; min-height:auto;">Configure Google key</button></div>' : '') +
+      googleSetupFormHtml() +
+    '</div>';
   }
 
   async function syncFile(kind) {
@@ -878,9 +1201,9 @@ img, svg, video { max-width: 100%; }
     var changed = false;
     for (var attempt = 0; attempt < 4; attempt++) {
       var r = useRelay ? await relayGet() : await ghGet(path);
-      var local = snap(kind);                       // fresh snapshot, no awaits until applied
+      var local = snap(kind);
       if (!r.missing && f.sha === r.sha && f.base && jeq(local, f.base)) return changed;
-      PREF_REMOTE = !f.base;                        // first ever sync on this device: repo wins ties
+      PREF_REMOTE = !f.base;
       var merged = r.missing ? local : merge3(f.base, local, r.data);
       PREF_REMOTE = false;
       merged = kind === "shared" ? normShared(merged) : normalizeMe(merged);
@@ -889,7 +1212,7 @@ img, svg, video { max-width: 100%; }
       var p = useRelay ? await relayPut(merged) : await ghPut(path, merged, r.missing ? null : r.sha, "Just One sync (" + kind + ")");
       if (p.conflict) continue;
       f.sha = p.sha; f.base = clone(merged); saveMeta();
-      if (useRelay) setTimeout(function () { syncAll(false); }, 4000);   // re-check that a simultaneous edit did not overwrite ours
+      if (useRelay) setTimeout(function () { syncAll(false); }, 4000);
       return changed;
     }
     throw new Error("Too many edits at once. Try again in a moment.");
@@ -912,8 +1235,9 @@ img, svg, video { max-width: 100%; }
       syncing = true; setSync("syncing");
       var changed = false;
       try {
-        if (await syncFile("shared")) changed = true;
+        if ((relay || sync) && await syncFile("shared")) changed = true;
         if (sync && await syncFile("me")) changed = true;
+        if (googleUser) await syncGoogleProfileToDb(false);
         syncState.last = Date.now(); setSync("ok");
       } catch (e) { setSync("error", str(e && e.message, 160)); }
       syncing = false;
@@ -992,7 +1316,9 @@ img, svg, video { max-width: 100%; }
       '<h1>Just One</h1>' +
       '<p class="tagline">Clean Home &middot; Clear Mind</p>' +
       '<div class="landing-box">' +
-        '<label class="label" for="onboardName" style="text-align:left;">Your name</label>' +
+        googleAccountBoxHtml(false) +
+        '<div style="display:flex; align-items:center; gap:0.5rem; color:var(--muted); margin:-0.4rem 0;"><hr style="flex:1; border-top:1px solid var(--line); border-bottom:0;"><span style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em;">Your Profile</span><hr style="flex:1; border-top:1px solid var(--line); border-bottom:0;"></div>' +
+        '<label class="label" for="onboardName" style="text-align:left; margin-bottom:-0.8rem;">Your name</label>' +
         '<input id="onboardName" type="text" maxlength="20" placeholder="What should roommates call you?" value="' + esc(me.name || "") + '" autocomplete="given-name" style="padding:0.8rem; font-size:1.1rem; border:1px solid var(--line); border-radius:10px;">' +
         '<button class="btn primary large" data-act="create-home">Create Home</button>' +
         '<div style="display:flex; align-items:center; gap:0.5rem; color:var(--muted);"><hr style="flex:1; border-top:1px solid var(--line); border-bottom:0;">OR<hr style="flex:1; border-top:1px solid var(--line); border-bottom:0;"></div>' +
@@ -1001,6 +1327,7 @@ img, svg, video { max-width: 100%; }
           '<input id="onboardJoinInput" type="text" placeholder="Paste invite link or code" value="' + esc(inviteHash()) + '" style="text-align:center; padding:0.8rem; font-size:1.1rem; border:1px solid var(--line); border-radius:10px;" autocomplete="off" required>' +
           '<button class="btn large" type="submit">Join Home</button>' +
         '</form>' +
+        '<p class="small" style="font-size:0.76rem; color:var(--muted); margin:0;">Default Cloud DB connected: <code>just-one-8f109</code></p>' +
       '</div>' +
       '<div style="width:100%;max-width:24rem;margin-top:1rem;text-align:left;">' + ((sync || showSyncSetup) ? syncCard() : '<button class="btn quiet" data-act="toggle-sync-setup">Advanced: GitHub sync</button>') + '</div></div>';
   }
@@ -1009,6 +1336,13 @@ img, svg, video { max-width: 100%; }
     return '<div class="tabs" role="group" aria-label="Sections">' + [["me", "Me"], ["house", "House"], ["kitchen", "Kitchen"], ["board", "Board"], ["settings", "⚙️"]].map(function (t) {
       return '<button class="tab" data-act="tab" data-tab="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</button>';
     }).join("") + '</div>';
+  }
+
+  function googleSettingsCard() {
+    return '<section class="card"><h2>Google Account</h2>' +
+      '<p class="small">Sign in with Google to sync your personal tasks, avatar photo, and home membership across devices via the default database.</p>' +
+      googleAccountBoxHtml(false) +
+    '</section>';
   }
 
   function settingsView() {
@@ -1040,6 +1374,7 @@ img, svg, video { max-width: 100%; }
     }
     
     return resetAlert + 
+      googleSettingsCard() +
       '<section class="card" aria-labelledby="h-settings"><h2 id="h-settings">App Settings</h2>' +
       '<form class="add" id="settingsForm" style="flex-direction:column; gap:1rem;">' +
       '<div style="width:100%;"><label class="label">Interface Theme</label>' +
@@ -1130,6 +1465,7 @@ img, svg, video { max-width: 100%; }
       '<div class="row" style="justify-content:center;"><label class="btn small primary" for="photoInput" style="display:inline-flex;align-items:center;">' + (me.photo ? "Change photo" : "Upload photo") + '</label>' +
       '<input id="photoInput" type="file" accept="image/*" hidden>' +
       (me.photo ? '<button class="btn quiet small" data-act="photo-rm">Remove</button>' : '') + '</div>' +
+      '<div style="width:100%; margin-top:0.4rem;">' + googleAccountBoxHtml(false) + '</div>' +
       '<p class="small" style="margin:0;">Your photo is cropped to a circle and shown to roommates on the board.</p></section>';
   }
   function profileCard() {
@@ -1255,7 +1591,7 @@ img, svg, video { max-width: 100%; }
     var sug = HOUSE_SUGGEST.filter(function (s) { return !have[s.text.toLowerCase()]; }).map(function (s) { return '<button class="chip add" data-act="sh-sug" data-text="' + esc(s.text) + '" data-area="' + esc(s.area) + '">+ ' + esc(s.text) + '</button>'; }).join("");
     
     return timerBanner() + chatBtn + progress + '<section class="card" aria-labelledby="h-house"><h2 id="h-house">House jobs</h2>' +
-      '<p class="small">Shared across this device. Only shared house jobs count toward Monthly Rewards.</p>' +
+      '<p class="small">Shared across your home. Only shared house jobs count toward Monthly Rewards.</p>' +
       (itemsHtml ? '<ul class="todo shared">' + itemsHtml + '</ul>' : "") + toggleBtn +
       '<form class="add" id="sharedForm"><input id="sharedInput" type="text" placeholder="Wipe the mirror" autocomplete="off" maxlength="100">' +
       '<select id="sharedEffort"><option value="1">Quick (1 pt)</option><option value="2" selected>Standard (2 pts)</option><option value="3">Big (3 pts)</option></select>' +
@@ -1383,7 +1719,6 @@ img, svg, video { max-width: 100%; }
     var rows = boardRows(), max = 0; rows.forEach(function (r) { if (r.displayScore > max) max = r.displayScore; });
     var rank = 0, prev = null;
     
-    // Pill Layout
     var lis = rows.map(function (r, i) {
       if (r.displayScore !== prev) { rank = i + 1; prev = r.displayScore; }
       var rankClass = rank === 1 ? "rank-1" : rank === 2 ? "rank-2" : rank === 3 ? "rank-3" : "rank-other";
@@ -1397,7 +1732,6 @@ img, svg, video { max-width: 100%; }
         '<span class="board-score">' + pad(r.displayScore) + '</span></li>';
     }).join("");
     
-    var inviteCode = scores && scores._meta ? scores._meta.inviteCode : "ERROR";
     var filterChips = '<div class="chips" role="group" aria-label="Score category" style="margin-bottom:1rem;">' +
       '<button class="chip" data-act="bfilter" data-f="house" aria-pressed="' + (boardFilter === "house") + '">House</button>' +
       '</div>';
@@ -1541,7 +1875,7 @@ img, svg, video { max-width: 100%; }
     return html;
   }
 
-  var KEEP_IDS = ["dietSelect", "dietNotes", "recipeName", "recipeIng", "recipeNotes", "choreRep", "sharedEffort", "choreInput", "sharedInput", "ingInput", "shopInput", "chatInput", "onboardJoinInput", "themeSelect", "kitchenSelect", "apiKeyInput", "joinKitchenInput", "rewardToggle", "rewPrize", "rewTarget", "syncRepo", "syncToken", "syncUid", "aiProvider", "aiModel", "aiBase", "onboardName", "nameInput", "dbInput"];
+  var KEEP_IDS = ["dietSelect", "dietNotes", "recipeName", "recipeIng", "recipeNotes", "choreRep", "sharedEffort", "choreInput", "sharedInput", "ingInput", "shopInput", "chatInput", "onboardJoinInput", "themeSelect", "kitchenSelect", "apiKeyInput", "joinKitchenInput", "rewardToggle", "rewPrize", "rewTarget", "syncRepo", "syncToken", "syncUid", "aiProvider", "aiModel", "aiBase", "onboardName", "nameInput", "dbInput", "googleApiKeyInput", "googleClientIdInput"];
 
 
   function render() {
@@ -1746,6 +2080,11 @@ img, svg, video { max-width: 100%; }
     if (!el || el.tagName === "INPUT") return;
     var act = el.getAttribute("data-act"), today = dayKey(new Date()), id = el.getAttribute("data-id");
     
+    if (act === "google-signin") { triggerGoogleSignIn(); return; }
+    if (act === "google-signout") { signOutGoogle(); return; }
+    if (act === "google-setup-toggle") { showGoogleSetup = !showGoogleSetup; render(); return; }
+    if (act === "google-setup-close") { showGoogleSetup = false; render(); return; }
+
     if (act === "toggle-upcoming") { showUpcoming = !showUpcoming; render(); return; }
     if (act === "toggle-history") { showHistory = !showHistory; render(); return; }
     if (act === "history-all") { historyAll = !historyAll; render(); return; }
@@ -1755,11 +2094,18 @@ img, svg, video { max-width: 100%; }
     if (act === "sync-now") { syncAll(true); return; }
     if (act === "sync-off") { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(META_KEY); clearTimeout(syncTimer); sync = null; syncMeta = {}; syncState = { status: "off", msg: "", last: 0 }; flash("Sync turned off. Your data stays on this device."); return; }
     if (act === "edit-name") { tab = "settings"; showChat = false; showStats = false; render(); setTimeout(function () { var ni = document.getElementById("nameInput"); if (ni) { ni.focus(); ni.select(); } }, 50); return; }
-    if (act === "copy-invite") { var lk = inviteLink(); copyText(lk).then(function (ok) { if (ok) flash("Invite link copied. Send it to your roommates."); else window.prompt("Copy this invite link:", lk); }); return; }
-    if (act === "db-change") { try { localStorage.removeItem(DB_URL_KEY); } catch (e) {} relayErr = ""; render(); return; }
+    if (act === "copy-invite") { var lk = inviteLink(); copyText(lk).then(function (ok) { if (ok) flash("Invite link copied! Send it to your roommates."); else flash("Invite link: " + lk); }); return; }
+    if (act === "db-change") { showDbEdit = !showDbEdit; relayErr = ""; render(); return; }
+    if (act === "db-cancel") { showDbEdit = false; render(); return; }
+    if (act === "db-reset") {
+      try { localStorage.removeItem(DB_URL_KEY); } catch (e) {}
+      if (relay) { relay.host = DEFAULT_DB_URL; saveJson(RELAY_KEY, relay); }
+      showDbEdit = false; relayErr = "";
+      flash("Reset to default database (" + DEFAULT_DB_URL + ").");
+      render(); return;
+    }
     if (act === "relay-on") {
-      if (!dbUrl()) { tab = "settings"; showChat = false; showStats = false; flash("First add your database address below (one-time setup)."); return; }
-      flash("Turning on home sync…"); startRelay().then(function (ok) { flash(ok ? "Home sync is on. Copy the invite link from the Board tab." : "Could not turn on home sync: " + relayErr); }); return;
+      flash("Turning on home sync…"); startRelay().then(function (ok) { flash(ok ? "Home sync is on! Copy the invite link from the Board tab." : "Could not turn on home sync: " + relayErr); }); return;
     }
     if (act === "relay-off") {
       if (confirmAct !== "relay-off") { confirmAct = "relay-off"; render(); return; }
@@ -1768,12 +2114,18 @@ img, svg, video { max-width: 100%; }
       flash("Home sync turned off. Your data stays on this device."); return;
     }
     if (act === "create-home") {
-      var nmC = str(document.getElementById("onboardName") && document.getElementById("onboardName").value, 20).trim();
-      if (!nmC) { flash("Please enter your name first."); return; }
+      var nmC = str((document.getElementById("onboardName") && document.getElementById("onboardName").value) || (googleUser && googleUser.name) || me.name, 20).trim();
+      if (!nmC) { flash("Please enter your name (or sign in with Google) first."); return; }
       me.name = nmC; saveMe();
       scores = { _meta: { inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(), kitchenMode: "shared", rewardsEnabled: false } };
-      scores[uid] = { joined: Date.now(), entries: {}, name: nmC }; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
-      saveSharedDB(); flash("Creating your home…"); startRelay().then(function (ok) { flash(ok ? "Home created! Copy the invite link from the Board tab and send it to your roommates." : "Home created on this device only. To invite roommates, finish the one-time setup in Settings → Home sync. (" + relayErr + ")"); }); return;
+      scores[uid] = { joined: Date.now(), entries: {}, name: nmC };
+      if (me.photo) scores[uid].photo = me.photo;
+      shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
+      saveSharedDB(); flash("Creating your home on the default cloud database…");
+      startRelay().then(function (ok) {
+        flash(ok ? "Home created! Copy the invite link from the Board tab and send it to your roommates." : "Home created on this device. Cloud sync notice: " + relayErr);
+      });
+      return;
     }
     if (act === "leave-home") {
       if (confirmAct !== "leave-home") { confirmAct = "leave-home"; render(); return; }
@@ -1911,7 +2263,17 @@ img, svg, video { max-width: 100%; }
 
   function handleForm(fid) {
     try {
-    if (fid === "syncForm") { connectSync(); } else if (fid === "settingsForm") {
+    if (fid === "googleCfgForm") {
+      var gk = (document.getElementById("googleApiKeyInput") && document.getElementById("googleApiKeyInput").value.trim()) || "";
+      var gc = (document.getElementById("googleClientIdInput") && document.getElementById("googleClientIdInput").value.trim()) || "";
+      if (!gk && !gc) { flash("Paste your Firebase Web API Key or Google Client ID."); return; }
+      googleCfg = { apiKey: gk, clientId: gc };
+      saveJson(GOOGLE_CFG_KEY, googleCfg);
+      saveRemoteGoogleConfig(googleCfg);
+      showGoogleSetup = false;
+      render();
+      triggerGoogleSignIn();
+    } else if (fid === "syncForm") { connectSync(); } else if (fid === "settingsForm") {
       me.theme = document.getElementById("themeSelect").value;
       scores._meta.rewardsEnabled = document.getElementById("rewardToggle").value === "true";
       saveMe(); saveSharedDB(); applyTheme(); flash("Preferences saved."); render();
@@ -1928,20 +2290,22 @@ img, svg, video { max-width: 100%; }
     } else if (fid === "dbForm") {
       var dbv = cleanDb(document.getElementById("dbInput").value);
       if (!dbv) { flash("That doesn't look like a database address. It should start with https://"); return; }
-      try { localStorage.setItem(DB_URL_KEY, dbv); } catch (e) {}
-      relayErr = ""; flash("Saved. Now press Turn on home sync.");
+      if (dbv === DEFAULT_DB_URL) { try { localStorage.removeItem(DB_URL_KEY); } catch (e) {} }
+      else { try { localStorage.setItem(DB_URL_KEY, dbv); } catch (e) {} }
+      if (relay) { relay.host = dbv; saveJson(RELAY_KEY, relay); }
+      showDbEdit = false; relayErr = ""; flash("Database URL saved (" + dbv + ")."); render();
     } else if (fid === "nameForm") {
       var nmV = str(document.getElementById("nameInput").value, 20).trim();
       if (!nmV) { flash("Please enter a name."); return; }
       setMyName(nmV); flash("Nice to meet you, " + nmV + "!"); render();
     } else if (fid === "onboardJoinForm") {
       var codeIn = document.getElementById("onboardJoinInput").value.trim().toUpperCase();
-      var nmJ = str(document.getElementById("onboardName") && document.getElementById("onboardName").value, 20).trim();
-      if (!nmJ) { flash("Please enter your name first."); return; }
+      var nmJ = str((document.getElementById("onboardName") && document.getElementById("onboardName").value) || (googleUser && googleUser.name) || me.name, 20).trim();
+      if (!nmJ) { flash("Please enter your name (or sign in with Google) first."); return; }
       var inv = parseInvite(document.getElementById("onboardJoinInput").value);
       if (inv) { flash("Joining…"); joinRelay(inv, nmJ); return; }
       if (scores && scores._meta && codeIn === scores._meta.inviteCode) { me.name = nmJ; saveMe(); scores[uid] = { joined: Date.now(), entries: {}, name: nmJ }; saveSharedDB(); flash("Joined successfully!"); render(); } 
-      else { flash("Invalid invite code or no home exists on this device yet."); }
+      else { flash("Invalid invite link or code."); }
     } else if (fid === "chatForm") {
       var ci = document.getElementById("chatInput"); var txt = ci.value.trim(); if (!txt) return;
       chat.push({ id: newId(), uid: uid, text: txt, time: Date.now() }); saveSharedDB(); ci.value = ""; render();
