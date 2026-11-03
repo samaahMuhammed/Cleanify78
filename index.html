@@ -17,13 +17,13 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script>
   firebase.initializeApp({
-    apiKey: "AIzaSyBvTfake_replaceme",
-    authDomain: "just-one-8f109.firebaseapp.com",
-    databaseURL: "https://just-one-8f109-default-rtdb.firebaseio.com",
-    projectId: "just-one-8f109",
-    storageBucket: "just-one-8f109.appspot.com",
-    messagingSenderId: "000000000000",
-    appId: "1:000000000000:web:0000000000000000000000"
+    apiKey: "AIzaSyDSg4sYHScMbgWgdfPL112BO1AdDNxG-7A",
+    authDomain: "homiess-2c743.firebaseapp.com",
+    databaseURL: "https://homiess-2c743-default-rtdb.firebaseio.com",
+    projectId: "homiess-2c743",
+    storageBucket: "homiess-2c743.firebasestorage.app",
+    messagingSenderId: "304886228632",
+    appId: "1:304886228632:web:629a5778723ecab49812ed"
   });
   window._fbAuth = firebase.auth();
 </script>
@@ -814,7 +814,7 @@ img, svg, video { max-width: 100%; }
   var relay = loadJson(RELAY_KEY), relayErr = "";
   if (relay && !relay.host) { relay = null; try { localStorage.removeItem(RELAY_KEY); } catch (e) {} }
   function syncOn() { return !!(sync || relay); }
-  var DEFAULT_DB = "https://just-one-8f109-default-rtdb.firebaseio.com";
+  var DEFAULT_DB = "https://homiess-2c743-default-rtdb.firebaseio.com";
   function dbUrl() { try { return localStorage.getItem(DB_URL_KEY) || DEFAULT_DB; } catch (e) { return DEFAULT_DB; } }
   function cleanDb(t) {
     t = String(t || "").trim().replace(/\/+$/, "").replace(/\.json$/i, "");
