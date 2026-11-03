@@ -1839,10 +1839,7 @@ img, svg, video { max-width: 100%; }
     }
     if (act === "google-sign-in") {
       var provider = new firebase.auth.GoogleAuthProvider();
-      window._fbAuth.signInWithPopup(provider).then(function(result) {
-        _googleDisplayName = (result.user.displayName||"").split(" ")[0]||"";
-        render();
-      }).catch(function(err) { flash("Sign-in failed: " + (err.message||String(err))); });
+      window._fbAuth.signInWithRedirect(provider);
       return;
     }
     if (act === "join-with-link") {
@@ -2102,6 +2099,10 @@ img, svg, video { max-width: 100%; }
   /* Show loading until Firebase resolves */
   document.getElementById("app").innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:60vh;color:var(--muted);">Loading…</div>';
   var _booted = false;
+  /* Pick up redirect result (mobile sign-in) */
+  window._fbAuth.getRedirectResult().catch(function(err) {
+    if (err && err.code !== 'auth/no-current-user') flash("Sign-in error: " + (err.message||String(err)));
+  });
   window._fbAuth.onAuthStateChanged(function(user) {
     if (user) {
       var legacy = localStorage.getItem("one-small-thing-uid");
