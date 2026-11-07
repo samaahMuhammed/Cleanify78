@@ -554,7 +554,10 @@ img, svg, video { max-width: 100%; }
   function setMyName(n) {
     n = str(n, 20).trim();
     me.name = n; saveMe();
-    if (scores && scores[uid]) { scores[uid].name = n; saveSharedDB(); }
+    if (scores && uid) {
+      if (!scores[uid]) scores[uid] = { joined: Date.now(), entries: {} };
+      scores[uid].name = n; saveSharedDB();
+    }
   }
   
   function curKey(rep) {
