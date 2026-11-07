@@ -526,6 +526,13 @@ img, svg, video { max-width: 100%; }
       '<button class="btn quiet small" data-act="toggle-history">Hide</button></div></section>';
   }
   function nameCard() { return '<section class="card"><h2>Your name</h2><p class="small">Roommates see this on the board and in chat.</p>' + nameFormHtml("Save name") + '</section>'; }
+  function accountCard() {
+    var user = window._fbAuth && window._fbAuth.currentUser;
+    var email = user ? user.email : "";
+    return '<section class="card"><h2>Account</h2>' +
+      (email ? '<p class="small">Signed in as <strong>' + esc(email) + '</strong></p>' : '') +
+      '<button class="btn quiet small" data-act="sign-out" style="color:var(--danger,#e55);">Sign out</button></section>';
+  }
   function homesCard() {
     var homes = loadHomes(), curId = activeHomeId();
     if (!homes.length) return '';
@@ -1138,7 +1145,7 @@ img, svg, video { max-width: 100%; }
       '</select></div>' +
       '<button class="btn primary" type="submit">Save Preferences</button></form></section>' +
       
-      homesCard() + nameCard() + timeLogView() + historyCard() + homeSyncCard() + ((sync || showSyncSetup) ? syncCard() : '<section class="card"><h2>Advanced</h2><p class="small">Optional: sync your personal settings between your own devices through GitHub. Not needed for roommates or home sync.</p><button class="btn quiet small" data-act="toggle-sync-setup">Show GitHub sync</button></section>') + '<section class="card"><h2>Food & Diet</h2>' +
+      accountCard() + homesCard() + nameCard() + timeLogView() + historyCard() + homeSyncCard() + ((sync || showSyncSetup) ? syncCard() : '<section class="card"><h2>Advanced</h2><p class="small">Optional: sync your personal settings between your own devices through GitHub. Not needed for roommates or home sync.</p><button class="btn quiet small" data-act="toggle-sync-setup">Show GitHub sync</button></section>') + '<section class="card"><h2>Food & Diet</h2>' +
       '<p class="small">Tell the app how you eat. Meal ideas and AI suggestions will follow it.</p>' +
       '<form class="add stack" id="dietForm" novalidate>' +
         '<label class="label" for="dietSelect">Dietary preference</label>' +
@@ -1856,6 +1863,13 @@ img, svg, video { max-width: 100%; }
       document.getElementById("app").innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:1rem;color:var(--muted);"><p>Redirecting to Google…</p></div>';
       var provider = new firebase.auth.GoogleAuthProvider();
       window._fbAuth.signInWithRedirect(provider);
+      return;
+    }
+    if (act === "sign-out") {
+      window._fbAuth.signOut().then(function() {
+        uid = ""; _googleDisplayName = "";
+        render();
+      }).catch(function(err) { flash("Sign-out failed: " + (err.message||String(err))); });
       return;
     }
     if (act === "join-with-link") {
