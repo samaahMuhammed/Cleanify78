@@ -1864,9 +1864,17 @@ img, svg, video { max-width: 100%; }
       flash("Home sync turned off. Your data stays on this device."); return;
     }
     if (act === "google-sign-in") {
-      document.getElementById("app").innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:1rem;color:var(--muted);"><p>Redirecting to Google…</p></div>';
       var provider = new firebase.auth.GoogleAuthProvider();
-      window._fbAuth.signInWithRedirect(provider);
+      /* Use popup on desktop, redirect on mobile */
+      var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        document.getElementById("app").innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:1rem;color:var(--muted);"><p>Redirecting to Google…</p></div>';
+        window._fbAuth.signInWithRedirect(provider);
+      } else {
+        window._fbAuth.signInWithPopup(provider).catch(function(err) {
+          flash("Sign-in failed: " + (err.message || String(err)));
+        });
+      }
       return;
     }
     if (act === "sign-out") {
