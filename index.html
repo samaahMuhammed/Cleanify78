@@ -1068,6 +1068,7 @@ img, svg, video { max-width: 100%; }
       '<p class="tagline">Clean Home &middot; Clear Mind</p>' +
       '<p class="small" style="text-align:center;color:var(--muted);">Signed in as <strong>' + esc(_googleDisplayName || "you") + '</strong></p>' +
       '<div class="landing-box">' +
+        '<input id="createHomeName" type="text" maxlength="20" placeholder="Your name" value="' + esc(me.name || _googleDisplayName) + '" style="padding:0.8rem;font-size:1.1rem;border:1px solid var(--line);border-radius:10px;text-align:center;" autocomplete="given-name">' +
         '<button class="btn primary large" data-act="create-home">Create a Home</button>' +
         '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);"><hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">OR<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;"></div>' +
         '<form id="onboardJoinForm" style="display:flex;flex-direction:column;gap:0.5rem;">' +
@@ -1890,8 +1891,10 @@ img, svg, video { max-width: 100%; }
       render(); return;
     }
     if (act === "create-home") {
-      var nmC = str(me.name, 20).trim();
-      if (!nmC) { flash("Set your name first (tap Continue above)."); render(); return; }
+      var nameInput = document.getElementById("createHomeName");
+      var nmC = nameInput ? str(nameInput.value, 20).trim() : str(me.name, 20).trim();
+      if (!nmC) { flash("Please enter your name above."); return; }
+      me.name = nmC; saveMe();
       scores = { _meta: { inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(), kitchenMode: "shared", rewardsEnabled: false } };
       scores[uid] = { joined: Date.now(), entries: {}, name: nmC }; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
       var newHid = newId(); setActiveHome(newHid);
