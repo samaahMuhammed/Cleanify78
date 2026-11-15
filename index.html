@@ -583,6 +583,9 @@ img, svg, video { max-width: 100%; }
         '<div style="margin-top:0.5rem;">' + nameFormHtml("Save name") + '</div>' +
       '</details>' +
       /* homes */
+      '<div style="border-top:1px solid var(--line);padding-top:0.75rem;margin-top:0.5rem;">' +
+        '<button class="btn quiet small" data-act="scroll-to-badges" style="width:100%;justify-content:space-between;display:flex;"><span>🏅 Badges & Stats</span><span>›</span></button>' +
+      '</div>' +
       (homes.length ? '<div style="border-top:1px solid var(--line);padding-top:0.75rem;margin-top:0;">' +
         '<p style="margin:0 0 0.5rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Your Homes</p>' +
         (homeBtns ? '<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.5rem;">' + homeBtns + '</div>' : '') +
@@ -863,7 +866,9 @@ img, svg, video { max-width: 100%; }
     houseRecipes = getArr(homeKey(DB_HOUSE_RECIPES)); scores = loadJson(homeKey(DB_SCORES))||{};
     syncMeta = loadJson(META_KEY+"__h__"+id)||{};
     syncState = {status: relay?"idle":"off", msg:"", last:0};
-    render(); if (relay) syncAll(true);
+    render();
+    if (document.getElementById("profileSheet") && document.getElementById("profileSheet").classList.contains("open")) renderSheet();
+    if (relay) syncAll(true);
   }
   var relay = loadJson(RELAY_KEY), relayErr = "";
   if (relay && !relay.host) { relay = null; try { localStorage.removeItem(RELAY_KEY); } catch (e) {} }
@@ -1110,18 +1115,14 @@ img, svg, video { max-width: 100%; }
 
   /* ---------- views ---------- */
   function createHomeView() {
-    return '<div class="landing">' +
+    return '<div class="landing" style="padding:2rem 1.5rem;">' +
       '<h1>Just One</h1>' +
       '<p class="tagline">Clean Home &middot; Clear Mind</p>' +
-      '<p class="small" style="text-align:center;color:var(--muted);">Signed in as <strong>' + esc(_googleDisplayName || "you") + '</strong></p>' +
+      '<p style="font-size:1rem;color:var(--muted);margin-bottom:2rem;">Hey <strong>' + esc(_googleDisplayName || myName() || 'there') + '</strong> — you\'re not in a home yet.</p>' +
       '<div class="landing-box">' +
-        '<input id="createHomeName" type="text" maxlength="20" placeholder="Your name" value="' + esc(me.name || _googleDisplayName) + '" style="padding:0.8rem;font-size:1.1rem;border:1px solid var(--line);border-radius:10px;text-align:center;" autocomplete="given-name">' +
-        '<button class="btn primary large" data-act="create-home">Create a Home</button>' +
-        '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);"><hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">OR<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;"></div>' +
-        '<form id="onboardJoinForm" style="display:flex;flex-direction:column;gap:0.5rem;">' +
-          '<input id="onboardJoinInput" type="text" placeholder="Paste invite link" value="' + esc(inviteHash()) + '" style="text-align:center;padding:0.8rem;font-size:1.1rem;border:1px solid var(--line);border-radius:10px;" autocomplete="off">' +
-          '<button class="btn large" type="button" data-act="join-with-link">Join with Invite Link</button>' +
-        '</form>' +
+        '<p class="small" style="text-align:center;">Tap your <strong>profile icon</strong> (top right) and scroll down to <strong>Home sync</strong> to create or join a home.</p>' +
+        '<button class="btn primary large" data-act="open-profile">Open Settings</button>' +
+        (inviteHash() ? '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);"><hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">or join now<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;"></div><form id="onboardJoinForm" style="display:flex;flex-direction:column;gap:0.5rem;"><input id="onboardJoinInput" type="text" placeholder="Paste invite link" value="' + esc(inviteHash()) + '" style="text-align:center;padding:0.8rem;font-size:1.1rem;border:1px solid var(--line);border-radius:10px;" autocomplete="off"><button class="btn large" type="button" data-act="join-with-link">Join with Invite Link</button></form>' : '') +
       '</div></div>';
   }
   function onboardingView() {
@@ -1148,10 +1149,11 @@ img, svg, video { max-width: 100%; }
     if (!body) return;
     body.innerHTML = safeRender(profileSettingsCard) + safeRender(statsView) + safeRender(settingsView);
   }
-  function openProfileSheet() {
+  function openProfileSheet(scrollTo) {
     var sheet = document.getElementById("profileSheet");
     sheet.classList.add("open");
     renderSheet();
+    if (scrollTo) { setTimeout(function(){ var el = document.getElementById(scrollTo); if (el) el.scrollIntoView({behavior:"smooth",block:"start"}); }, 150); }
   }
   function closeProfileSheet() {
     var sheet = document.getElementById("profileSheet");
@@ -1319,11 +1321,8 @@ img, svg, video { max-width: 100%; }
              '</div>';
     }).join("");
 
-    return '<section class="card">' +
-      '<div class="row" style="justify-content:space-between;">' +
-        '<h2 style="margin:0;">My Stats & Badges</h2>' +
-        '<button class="btn quiet small" data-act="toggle-stats">← Back</button>' +
-      '</div>' +
+    return '<section class="card" id="sheetBadges" style="scroll-margin-top:0.5rem;">' +
+      '<h2 style="margin:0 0 0.5rem;">My Stats & Badges</h2>' +
       '<p class="small">Total Points: <strong>' + totalPts + '</strong> &middot; Tasks completed: <strong>' + choresDone + '</strong></p>' +
       '<div class="badges-grid">' + badgesHtml + '</div>' +
     '</section>';
@@ -2009,6 +2008,7 @@ img, svg, video { max-width: 100%; }
     }
     if (act === "tab") { confirmAct = ""; recipeNote = ""; tab = el.getAttribute("data-tab"); showStats = false; showChat = false; pendingRm = ""; openRecipeId = ""; render(); return; }
     if (act === "open-profile") { openProfileSheet(); return; }
+    if (act === "scroll-to-badges") { openProfileSheet("sheetBadges"); return; }
     if (act === "close-profile-sheet") { closeProfileSheet(); return; }
 
     if (act === "photo-rm") { me.photo = ""; if (scores && scores[uid]) { delete scores[uid].photo; saveSharedDB(); } saveMe(); render(); return; }
