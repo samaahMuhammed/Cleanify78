@@ -31,7 +31,7 @@
 /* Layout & Theme Variables */
 :root {
   --bg: #EAF1EE; --surface: #F7FAF8; --ink: #1C3438; --muted: #587074; --line: #CFDCD8;
-  --soft: #D9EAE7; --accent: #2F7E8C; --accent-ink: #FFFFFF; --warm: #E2AE3A; --warm-ink: #3A2A00; --ok: #3C8D62;
+  --soft: #D9EAE7; --accent: #2F7E8C; --accent-ink: #FFFFFF; --warm: #E2AE3A; --warm-ink: #3A2A00; --ok: #3C8D62; --danger: #c0392b;
   --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
   --font-body: "Figtree", "Segoe UI", system-ui, sans-serif;
   --font-mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -40,13 +40,13 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0F1C1E; --surface: #162629; --ink: #E3EFEC; --muted: #8FA9AB; --line: #284045;
-    --soft: #1D3539; --accent: #6FC0CB; --accent-ink: #0F1C1E; --warm: #E3B650; --warm-ink: #2A1E00; --ok: #6CC596;
+    --soft: #1D3539; --accent: #6FC0CB; --accent-ink: #0F1C1E; --warm: #E3B650; --warm-ink: #2A1E00; --ok: #6CC596; --danger: #ff6b6b;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0F1C1E; --surface: #162629; --ink: #E3EFEC; --muted: #8FA9AB; --line: #284045;
-  --soft: #1D3539; --accent: #6FC0CB; --accent-ink: #0F1C1E; --warm: #E3B650; --warm-ink: #2A1E00; --ok: #6CC596;
+  --soft: #1D3539; --accent: #6FC0CB; --accent-ink: #0F1C1E; --warm: #E3B650; --warm-ink: #2A1E00; --ok: #6CC596; --danger: #ff6b6b;
   color-scheme: dark;
 }
 :root[data-theme="light"] {
@@ -575,7 +575,7 @@ img, svg, video { max-width: 100%; }
         '<div style="flex:1;min-width:0;">' +
           '<p style="margin:0;font-size:1.1rem;font-weight:700;line-height:1.2;">' + esc(myName()||"Set your name") + '</p>' +
           (email ? '<p style="margin:0.15rem 0 0;font-size:0.8rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(email) + '</p>' : '') +
-          '<button class="btn quiet small" data-act="sign-out" style="margin-top:0.4rem;color:var(--danger,#e55);padding:0.2rem 0.6rem;font-size:0.8rem;">Sign out</button>' +
+          '<button class="btn quiet small" data-act="sign-out" style="margin-top:0.4rem;color:var(--danger);padding:0.2rem 0.6rem;font-size:0.8rem;">Sign out</button>' +
         '</div>' +
       '</div>' +
       /* name edit */
@@ -583,13 +583,19 @@ img, svg, video { max-width: 100%; }
         '<div style="margin-top:0.5rem;">' + nameFormHtml("Save name") + '</div>' +
       '</details>' +
       /* homes */
-      '<div style="border-top:1px solid var(--line);padding-top:0.75rem;margin-top:0.5rem;">' +
-        '<button class="btn quiet small" data-act="scroll-to-badges" style="width:100%;justify-content:space-between;display:flex;"><span>🏅 Badges & Stats</span><span>›</span></button>' +
-      '</div>' +
-      (homes.length ? '<div style="border-top:1px solid var(--line);padding-top:0.75rem;margin-top:0;">' +
-        '<p style="margin:0 0 0.5rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Your Homes</p>' +
-        (homeBtns ? '<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.5rem;">' + homeBtns + '</div>' : '') +
-        '<button class="btn quiet small" data-act="add-home" style="font-size:0.8rem;">＋ Add another home</button>' +
+      (homes.length ? '<div style="border-top:1px solid var(--line);padding-top:0.75rem;margin-top:0.5rem;">' +
+        '<p style="margin:0 0 0.6rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Your Homes</p>' +
+        homes.map(function(h) {
+          var active = h.id === curId;
+          return '<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem;">' +
+            '<button class="btn ' + (active ? 'primary' : 'quiet') + ' small" style="flex:1;border-radius:20px;text-align:left;" ' +
+              (active ? 'disabled' : 'data-act="switch-home" data-homeid="' + esc(h.id) + '"') + '>' +
+              (active ? '✓ ' : '') + esc(h.name||'Home') +
+            '</button>' +
+            (!active ? '<button class="btn small" data-act="delete-home" data-homeid="' + esc(h.id) + '" style="color:var(--danger,#c0392b);border-color:var(--line);padding:0.3rem 0.6rem;font-size:0.85rem;" title="Remove this home">✕</button>' : '') +
+          '</div>';
+        }).join('') +
+        '<button class="btn quiet small" data-act="add-home" style="font-size:0.8rem;margin-top:0.2rem;">＋ Add another home</button>' +
       '</div>' : '') +
     '</section>';
   }
@@ -1116,13 +1122,18 @@ img, svg, video { max-width: 100%; }
   /* ---------- views ---------- */
   function createHomeView() {
     return '<div class="landing" style="padding:2rem 1.5rem;">' +
-      '<h1>Just One</h1>' +
+      '<h1 style="color:var(--accent);">Just One</h1>' +
       '<p class="tagline">Clean Home &middot; Clear Mind</p>' +
-      '<p style="font-size:1rem;color:var(--muted);margin-bottom:2rem;">Hey <strong>' + esc(_googleDisplayName || myName() || 'there') + '</strong> — you\'re not in a home yet.</p>' +
+      '<p style="font-size:1rem;color:var(--muted);margin-bottom:2rem;">Hey <strong>' + esc(_googleDisplayName || myName() || 'there') + '</strong> — set up or join a home to get started.</p>' +
       '<div class="landing-box">' +
-        '<p class="small" style="text-align:center;">Tap your <strong>profile icon</strong> (top right) and scroll down to <strong>Home sync</strong> to create or join a home.</p>' +
-        '<button class="btn primary large" data-act="open-profile">Open Settings</button>' +
-        (inviteHash() ? '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);"><hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">or join now<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;"></div><form id="onboardJoinForm" style="display:flex;flex-direction:column;gap:0.5rem;"><input id="onboardJoinInput" type="text" placeholder="Paste invite link" value="' + esc(inviteHash()) + '" style="text-align:center;padding:0.8rem;font-size:1.1rem;border:1px solid var(--line);border-radius:10px;" autocomplete="off"><button class="btn large" type="button" data-act="join-with-link">Join with Invite Link</button></form>' : '') +
+        '<button class="btn primary large" data-act="create-home-flow">🏠 Create a new home</button>' +
+        '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);">' +
+          '<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">or<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">' +
+        '</div>' +
+        '<form id="onboardJoinForm" style="display:flex;flex-direction:column;gap:0.5rem;">' +
+          '<input id="onboardJoinInput" type="text" placeholder="Paste invite link to join" value="' + esc(inviteHash()) + '" style="text-align:center;padding:0.8rem;font-size:1rem;border:1px solid var(--line);border-radius:10px;" autocomplete="off">' +
+          '<button class="btn large" type="button" data-act="join-with-link">Join with Invite Link</button>' +
+        '</form>' +
       '</div></div>';
   }
   function onboardingView() {
@@ -1186,8 +1197,8 @@ img, svg, video { max-width: 100%; }
       var req = scores._meta.resetRequest;
       var totalUsers = Object.keys(scores).length - 1;
       var agreedCount = req.agreed.length;
-      resetAlert = '<section class="card banner" style="background:var(--surface); border:2px solid red; color:var(--ink);">' +
-                   '<h3 style="margin:0; color:red;">House Reset Requested</h3>' +
+      resetAlert = '<section class="card banner" style="background:var(--surface); border:2px solid var(--danger); color:var(--ink);">' +
+                   '<h3 style="margin:0; color:var(--danger);">House Reset Requested</h3>' +
                    '<p class="small">Someone wants to completely wipe the house tasks and scores. ' + agreedCount + '/' + totalUsers + ' have agreed.</p>' +
                    (!req.agreed.includes(uid) ? '<button class="btn primary small" data-act="agree-reset">I Agree to Reset</button>' : '<p class="small" style="color:var(--muted);">Waiting for others...</p>') +
                    '</section>';
@@ -1245,10 +1256,10 @@ img, svg, video { max-width: 100%; }
           '<li><strong>Made for you:</strong> Ideas follow the diet and notes you set above, whether that is halal, vegetarian, gluten-free or no rules at all.</li>' +
         '</ul>' +
       '</div></section>' + 
-      '<section class="card"><h2 style="color:var(--warm-ink);">Danger Zone</h2>' + 
+      '<section class="card"><h2 style="color:var(--danger);">Danger Zone</h2>' +
       '<div style="display:flex; flex-direction:column; gap:0.5rem;">' +
-      '<button class="btn quiet small" style="color:var(--warm-ink); border:1px solid var(--line);" data-act="request-reset">' + (confirmAct === "request-reset" ? "Tap again to reset everything" : "Request House Reset (Everyone)") + '</button>' +
-      '<button class="btn small" style="color:red; border-color:red;" data-act="leave-home">' + (confirmAct === "leave-home" ? "Tap again to leave" : "Leave Home (Just Me)") + '</button>' +
+      '<button class="btn quiet small" style="color:var(--muted); border:1px solid var(--line);" data-act="request-reset">' + (confirmAct === "request-reset" ? "Tap again to reset everything" : "Request House Reset (Everyone)") + '</button>' +
+      '<button class="btn small" style="color:var(--danger); border-color:var(--danger);" data-act="leave-home">' + (confirmAct === "leave-home" ? "Tap again to leave" : "Leave Home (Just Me)") + '</button>' +
       '</div></section>';
   }
 
@@ -1308,10 +1319,11 @@ img, svg, video { max-width: 100%; }
     return '<section class="card"><h2>Recent Time Log</h2>' + logs + '</section>';
   }
 
+  var _badgesOpen = false;
   function statsView() {
     var totalPts = 0, choresDone = 0;
     if (scores && scores[uid] && scores[uid].entries) { Object.values(scores[uid].entries).forEach(e => { totalPts += e.p; choresDone++; }); }
-    
+
     var badgesHtml = BADGES.map(function(b) {
       var unlocked = b.check();
       return '<div class="badge-item ' + (unlocked ? "" : "locked") + '">' +
@@ -1321,10 +1333,21 @@ img, svg, video { max-width: 100%; }
              '</div>';
     }).join("");
 
-    return '<section class="card" id="sheetBadges" style="scroll-margin-top:0.5rem;">' +
-      '<h2 style="margin:0 0 0.5rem;">My Stats & Badges</h2>' +
-      '<p class="small">Total Points: <strong>' + totalPts + '</strong> &middot; Tasks completed: <strong>' + choresDone + '</strong></p>' +
-      '<div class="badges-grid">' + badgesHtml + '</div>' +
+    var unlockedCount = BADGES.filter(function(b){ return b.check(); }).length;
+
+    return '<section class="card" id="sheetBadges" style="scroll-margin-top:0.5rem;padding:0;">' +
+      '<button data-act="toggle-badges" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.1rem;background:transparent;border:0;color:var(--ink);font:inherit;cursor:pointer;border-radius:14px;min-height:52px;">' +
+        '<span style="display:flex;align-items:center;gap:0.6rem;">' +
+          '<span style="font-size:1.2rem;">🏅</span>' +
+          '<span style="font-weight:600;font-size:0.95rem;">Badges &amp; Stats</span>' +
+          '<span style="background:var(--accent);color:var(--accent-ink);font-size:0.72rem;font-weight:700;padding:0.1rem 0.5rem;border-radius:999px;">' + unlockedCount + '/' + BADGES.length + '</span>' +
+        '</span>' +
+        '<span style="color:var(--muted);font-size:1rem;transition:transform 0.2s;' + (_badgesOpen ? 'transform:rotate(180deg)' : '') + '">▾</span>' +
+      '</button>' +
+      (_badgesOpen ? '<div style="padding:0 1.1rem 1.1rem;">' +
+        '<p class="small" style="margin-bottom:0.75rem;">Total Points: <strong>' + totalPts + '</strong> &middot; Tasks completed: <strong>' + choresDone + '</strong></p>' +
+        '<div class="badges-grid">' + badgesHtml + '</div>' +
+      '</div>' : '') +
     '</section>';
   }
 
@@ -1944,11 +1967,20 @@ img, svg, video { max-width: 100%; }
       var hid2 = e.target.getAttribute("data-homeid");
       if (hid2) { flash("Switching…"); switchHome(hid2); } return;
     }
-    if (act === "add-home") {
+    if (act === "add-home" || act === "create-home-flow") {
       setActiveHome("");
       relay = null; try { localStorage.removeItem(RELAY_KEY); } catch(ex) {}
       shared=[]; shopping=[]; chat=[]; chatReads={}; houseRecipes=[]; scores={};
       render(); return;
+    }
+    if (act === "delete-home") {
+      var delId = e.target.getAttribute("data-homeid");
+      if (!delId || delId === activeHomeId()) return;
+      var remaining2 = loadHomes().filter(function(h){ return h.id !== delId; });
+      saveHomes(remaining2);
+      flash("Home removed.");
+      renderSheet();
+      return;
     }
     if (act === "create-home") {
       var nameInput = document.getElementById("createHomeName");
@@ -2008,8 +2040,9 @@ img, svg, video { max-width: 100%; }
     }
     if (act === "tab") { confirmAct = ""; recipeNote = ""; tab = el.getAttribute("data-tab"); showStats = false; showChat = false; pendingRm = ""; openRecipeId = ""; render(); return; }
     if (act === "open-profile") { openProfileSheet(); return; }
-    if (act === "scroll-to-badges") { openProfileSheet("sheetBadges"); return; }
+    if (act === "scroll-to-badges") { _badgesOpen = true; openProfileSheet("sheetBadges"); return; }
     if (act === "close-profile-sheet") { closeProfileSheet(); return; }
+    if (act === "toggle-badges") { _badgesOpen = !_badgesOpen; renderSheet(); return; }
 
     if (act === "photo-rm") { me.photo = ""; if (scores && scores[uid]) { delete scores[uid].photo; saveSharedDB(); } saveMe(); render(); return; }
     if (act === "toggle-stats") { openProfileSheet(); return; }
