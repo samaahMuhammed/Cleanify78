@@ -1121,17 +1121,18 @@ img, svg, video { max-width: 100%; }
 
   /* ---------- views ---------- */
   function createHomeView() {
+    var nameVal = esc(myName() || _googleDisplayName || "");
     return '<div class="landing" style="padding:2rem 1.5rem;">' +
       '<h1 style="color:var(--accent);">Just One</h1>' +
       '<p class="tagline">Clean Home &middot; Clear Mind</p>' +
       '<p style="font-size:1rem;color:var(--muted);margin-bottom:2rem;">Hey <strong>' + esc(_googleDisplayName || myName() || 'there') + '</strong> — set up or join a home to get started.</p>' +
       '<div class="landing-box">' +
-        '<button class="btn primary large" data-act="create-home-flow">🏠 Create a new home</button>' +
+        '<button class="btn primary large" data-act="quick-create-home">🏠 Create a new home</button>' +
         '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);">' +
-          '<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">or<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">' +
+          '<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">or join existing<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">' +
         '</div>' +
         '<form id="onboardJoinForm" style="display:flex;flex-direction:column;gap:0.5rem;">' +
-          '<input id="onboardJoinInput" type="text" placeholder="Paste invite link to join" value="' + esc(inviteHash()) + '" style="text-align:center;padding:0.8rem;font-size:1rem;border:1px solid var(--line);border-radius:10px;" autocomplete="off">' +
+          '<input id="onboardJoinInput" type="text" placeholder="Paste invite link" value="' + esc(inviteHash()) + '" style="text-align:center;padding:0.8rem;font-size:1rem;border:1px solid var(--line);border-radius:10px;" autocomplete="off">' +
           '<button class="btn large" type="button" data-act="join-with-link">Join with Invite Link</button>' +
         '</form>' +
       '</div></div>';
@@ -1220,7 +1221,7 @@ img, svg, video { max-width: 100%; }
       '</select></div>' +
       '<button class="btn primary" type="submit">Save Preferences</button></form></section>' +
       
-      profileSettingsCard() + timeLogView() + historyCard() + homeSyncCard() + ((sync || showSyncSetup) ? syncCard() : '<section class="card"><h2>Advanced</h2><p class="small">Optional: sync your personal settings between your own devices through GitHub. Not needed for roommates or home sync.</p><button class="btn quiet small" data-act="toggle-sync-setup">Show GitHub sync</button></section>') + '<section class="card"><h2>Food & Diet</h2>' +
+      timeLogView() + historyCard() + homeSyncCard() + ((sync || showSyncSetup) ? syncCard() : '<section class="card"><h2>Advanced</h2><p class="small">Optional: sync your personal settings between your own devices through GitHub. Not needed for roommates or home sync.</p><button class="btn quiet small" data-act="toggle-sync-setup">Show GitHub sync</button></section>') + '<section class="card"><h2>Food & Diet</h2>' +
       '<p class="small">Tell the app how you eat. Meal ideas and AI suggestions will follow it.</p>' +
       '<form class="add stack" id="dietForm" novalidate>' +
         '<label class="label" for="dietSelect">Dietary preference</label>' +
@@ -1981,6 +1982,19 @@ img, svg, video { max-width: 100%; }
       flash("Home removed.");
       renderSheet();
       return;
+    }
+    if (act === "quick-create-home") {
+      /* Create home immediately using the signed-in user's display name */
+      var nmQ = str(myName() || _googleDisplayName || "", 20).trim();
+      if (!nmQ) { flash("Set your name first (tap your profile icon)."); return; }
+      scores = { _meta: { inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(), kitchenMode: "shared", rewardsEnabled: false } };
+      scores[uid] = { joined: Date.now(), entries: {}, name: nmQ }; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
+      var newHidQ = newId(); setActiveHome(newHidQ);
+      saveSharedDB(); flash("Creating your home…"); startRelay().then(function (ok) {
+        registerHome(newHidQ, nmQ + "'s Home", ok&&relay?relay.id:null, ok&&relay?relay.key:null, DEFAULT_DB);
+        flash(ok ? "Home created! Share the invite link from the Board tab." : "Home created! (" + relayErr + ")");
+        render();
+      }); return;
     }
     if (act === "create-home") {
       var nameInput = document.getElementById("createHomeName");
