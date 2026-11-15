@@ -637,7 +637,7 @@ img, svg, video { max-width: 100%; }
     if (dowOf(rep) >= 0) return DOW_NAMES[dowOf(rep)] + "s"; return String(rep).startsWith("custom:") ? "Every " + rep.split(":")[1] + " days" : rep; }
   function choreDone(c) { return !!c.doneKey && c.doneKey === curKey(c.repeat); }
   function todaysTask(today) { var i = (dayNumber(new Date()) + (me.swap[today] || 0) * 7) % POOL.length; return POOL[((i % POOL.length) + POOL.length) % POOL.length]; }
-  function newId() { return "c" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36); }
+  function newId() { return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,function(c){return(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16);}); }
   function splitList(s) { return String(s || "").split(/[\n,;]+/).map(function (x) { return x.trim(); }).filter(function (x) { return x.length > 0; }); }
   function str(v, n) { return String(v == null ? "" : v).slice(0, n || 200); }
 
@@ -948,6 +948,29 @@ img, svg, video { max-width: 100%; }
   }
   function inviteLink() { return relay ? location.href.split("#")[0] + "#join=" + relay.id + "." + relay.key + "&db=" + encodeURIComponent(relay.host) : ""; }
   function inviteHash() { try { return (location.hash || "").indexOf("join=") >= 0 ? location.hash.replace(/^#/, "") : ""; } catch (e) { return ""; } }
+  /* Short room code: base64url(relayId + "." + relayKey + "|" + host) prefixed with home slug */
+  function makeRoomCode(homeName) {
+    if (!relay) return "";
+    var payload = relay.id + "." + relay.key + "|" + relay.host;
+    var code = btoa(payload).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+    var slug = (homeName||"HOME").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6);
+    return slug + "-" + code;
+  }
+  function parseRoomCode(raw) {
+    raw = String(raw||"").trim();
+    /* Strip slug prefix if present (SLUG-<base64>) */
+    var m = raw.match(/^[A-Z0-9]{1,8}-(.+)$/i) || raw.match(/^(.{20,})$/);
+    var b64 = m ? m[1] : raw;
+    try {
+      b64 = b64.replace(/-/g,"+").replace(/_/g,"/");
+      while (b64.length%4) b64+="=";
+      var payload = atob(b64);
+      var parts = payload.split("|");
+      var idkey = parts[0].split(".");
+      if (idkey.length < 2 || idkey[1].length < 16) return null;
+      return { id: idkey[0], key: idkey.slice(1).join("."), host: parts[1] || DEFAULT_DB };
+    } catch(e) { return null; }
+  }
   function copyText(t) { return (navigator.clipboard && navigator.clipboard.writeText) ? navigator.clipboard.writeText(t).then(function () { return true; }, function () { return false; }) : Promise.resolve(false); }
   async function joinRelay(inv, name) {
     var prev = relay;
@@ -1121,19 +1144,23 @@ img, svg, video { max-width: 100%; }
 
   /* ---------- views ---------- */
   function createHomeView() {
-    var nameVal = esc(myName() || _googleDisplayName || "");
+    var suggested = esc((myName() || _googleDisplayName || "My") + "'s Home");
     return '<div class="landing" style="padding:2rem 1.5rem;">' +
       '<h1 style="color:var(--accent);">Just One</h1>' +
       '<p class="tagline">Clean Home &middot; Clear Mind</p>' +
-      '<p style="font-size:1rem;color:var(--muted);margin-bottom:2rem;">Hey <strong>' + esc(_googleDisplayName || myName() || 'there') + '</strong> — set up or join a home to get started.</p>' +
+      '<p style="font-size:1rem;color:var(--muted);margin-bottom:2rem;">Hey <strong>' + esc(_googleDisplayName || myName() || 'there') + '</strong> — create a home or join one.</p>' +
       '<div class="landing-box">' +
-        '<button class="btn primary large" data-act="quick-create-home">🏠 Create a new home</button>' +
+        '<form id="quickCreateForm" style="display:flex;flex-direction:column;gap:0.75rem;">' +
+          '<label style="font-weight:600;font-size:0.9rem;text-align:left;">Home name</label>' +
+          '<input id="quickHomeName" type="text" placeholder="e.g. ' + suggested + '" value="' + suggested + '" maxlength="30" style="padding:0.8rem;font-size:1rem;border:1px solid var(--line);border-radius:10px;text-align:center;" autocomplete="off">' +
+          '<button class="btn primary large" type="submit">🏠 Create home</button>' +
+        '</form>' +
         '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);">' +
           '<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">or join existing<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">' +
         '</div>' +
-        '<form id="onboardJoinForm" style="display:flex;flex-direction:column;gap:0.5rem;">' +
-          '<input id="onboardJoinInput" type="text" placeholder="Paste invite link" value="' + esc(inviteHash()) + '" style="text-align:center;padding:0.8rem;font-size:1rem;border:1px solid var(--line);border-radius:10px;" autocomplete="off">' +
-          '<button class="btn large" type="button" data-act="join-with-link">Join with Invite Link</button>' +
+        '<form id="joinCodeForm" style="display:flex;flex-direction:column;gap:0.6rem;">' +
+          '<input id="roomCodeInput" type="text" placeholder="Paste room code from your roommate" style="padding:0.8rem;font-size:0.95rem;border:1px solid var(--line);border-radius:10px;text-align:center;letter-spacing:0.03em;" autocomplete="off" autocapitalize="characters">' +
+          '<button class="btn large" type="submit">Join home</button>' +
         '</form>' +
       '</div></div>';
   }
@@ -1146,14 +1173,7 @@ img, svg, video { max-width: 100%; }
           '<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>' +
           'Sign in with Google' +
         '</button>' +
-        '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);margin-top:0.5rem;"><hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;">or join with invite<hr style="flex:1;border-top:1px solid var(--line);border-bottom:0;"></div>' +
-        (inviteHash() ? '<p class="small" style="text-align:center;">Sign in first — your invite link is already filled in.</p>' : '') +
-        '<form id="onboardJoinForm" style="display:flex;flex-direction:column;gap:0.5rem;">' +
-          '<input id="onboardJoinInput" type="text" placeholder="Paste invite link" value="' + esc(inviteHash()) + '" style="text-align:center;padding:0.8rem;font-size:1.1rem;border:1px solid var(--line);border-radius:10px;" autocomplete="off">' +
-          '<button class="btn large" type="button" data-act="join-with-link">Join with Invite Link</button>' +
-        '</form>' +
-      '</div>' +
-      '<div style="width:100%;max-width:24rem;margin-top:1rem;text-align:left;">' + ((sync || showSyncSetup) ? syncCard() : '<button class="btn quiet" data-act="toggle-sync-setup">Advanced: GitHub sync</button>') + '</div></div>';
+      '</div></div>';
   }
 
   function renderSheet() {
@@ -1931,7 +1951,13 @@ img, svg, video { max-width: 100%; }
     if (act === "sync-now") { syncAll(true); return; }
     if (act === "sync-off") { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(META_KEY); clearTimeout(syncTimer); sync = null; syncMeta = {}; syncState = { status: "off", msg: "", last: 0 }; flash("Sync turned off. Your data stays on this device."); return; }
     if (act === "edit-name") { tab = "settings"; showChat = false; showStats = false; render(); setTimeout(function () { var ni = document.getElementById("nameInput"); if (ni) { ni.focus(); ni.select(); } }, 50); return; }
-    if (act === "copy-invite") { var lk = inviteLink(); copyText(lk).then(function (ok) { if (ok) flash("Invite link copied. Send it to your roommates."); else window.prompt("Copy this invite link:", lk); }); return; }
+    if (act === "copy-invite") {
+      var homes2 = loadHomes().filter(function(h){return h.id===activeHomeId();});
+      var hName2 = homes2.length ? homes2[0].name : "Home";
+      var rc = makeRoomCode(hName2);
+      var shareVal = rc || inviteLink();
+      copyText(shareVal).then(function (ok) { if (ok) flash("Room code copied! Share it with your roommate."); else window.prompt("Share this room code:", shareVal); }); return;
+    }
     if (act === "db-change") { try { localStorage.removeItem(DB_URL_KEY); } catch (e) {} relayErr = ""; render(); return; }
     if (act === "relay-on") {
       if (!dbUrl()) { tab = "settings"; showChat = false; showStats = false; flash("First add your database address below (one-time setup)."); return; }
@@ -1984,17 +2010,7 @@ img, svg, video { max-width: 100%; }
       return;
     }
     if (act === "quick-create-home") {
-      /* Create home immediately using the signed-in user's display name */
-      var nmQ = str(myName() || _googleDisplayName || "", 20).trim();
-      if (!nmQ) { flash("Set your name first (tap your profile icon)."); return; }
-      scores = { _meta: { inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(), kitchenMode: "shared", rewardsEnabled: false } };
-      scores[uid] = { joined: Date.now(), entries: {}, name: nmQ }; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
-      var newHidQ = newId(); setActiveHome(newHidQ);
-      saveSharedDB(); flash("Creating your home…"); startRelay().then(function (ok) {
-        registerHome(newHidQ, nmQ + "'s Home", ok&&relay?relay.id:null, ok&&relay?relay.key:null, DEFAULT_DB);
-        flash(ok ? "Home created! Share the invite link from the Board tab." : "Home created! (" + relayErr + ")");
-        render();
-      }); return;
+      /* handled by quickCreateForm submit */ return;
     }
     if (act === "create-home") {
       var nameInput = document.getElementById("createHomeName");
@@ -2180,6 +2196,28 @@ img, svg, video { max-width: 100%; }
       if (!dbv) { flash("That doesn't look like a database address. It should start with https://"); return; }
       try { localStorage.setItem(DB_URL_KEY, dbv); } catch (e) {}
       relayErr = ""; flash("Saved. Now press Turn on home sync.");
+    } else if (fid === "quickCreateForm") {
+      var homeNameInput = document.getElementById("quickHomeName");
+      var homeName = homeNameInput ? str(homeNameInput.value, 30).trim() : "";
+      if (!homeName) { flash("Give your home a name first."); return; }
+      var nmQF = str(myName() || _googleDisplayName || "", 20).trim();
+      if (!nmQF) { flash("Set your name in profile first."); return; }
+      scores = { _meta: { inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(), kitchenMode: "shared", rewardsEnabled: false } };
+      scores[uid] = { joined: Date.now(), entries: {}, name: nmQF }; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = [];
+      var newHidF = newId(); setActiveHome(newHidF);
+      saveSharedDB(); flash("Creating "" + homeName + ""…"); startRelay().then(function (ok) {
+        registerHome(newHidF, homeName, ok&&relay?relay.id:null, ok&&relay?relay.key:null, DEFAULT_DB);
+        flash(ok ? "✓ Home created! Share the invite link from the Board tab." : "Home created on this device. (" + relayErr + ")");
+        render();
+      }); return;
+    } else if (fid === "joinCodeForm") {
+      var rcInput = document.getElementById("roomCodeInput");
+      var rcRaw = rcInput ? rcInput.value.trim() : "";
+      if (!rcRaw) { flash("Paste the room code your roommate shared."); return; }
+      /* also try legacy invite link */
+      var invParsed = parseRoomCode(rcRaw) || parseInvite(rcRaw);
+      if (!invParsed) { flash("That doesn't look like a valid room code. Ask your roommate to share it again."); return; }
+      flash("Joining…"); joinRelay(invParsed, myName() || _googleDisplayName || "Roommate"); return;
     } else if (fid === "nameForm") {
       var nmV = str(document.getElementById("nameInput").value, 20).trim();
       if (!nmV) { flash("Please enter a name."); return; }
