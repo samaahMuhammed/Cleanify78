@@ -1995,6 +1995,7 @@ img, svg, video { max-width: 100%; }
       if (hid2) { flash("Switching…"); switchHome(hid2); } return;
     }
     if (act === "add-home" || act === "create-home-flow") {
+      closeProfileSheet();
       setActiveHome("");
       relay = null; try { localStorage.removeItem(RELAY_KEY); } catch(ex) {}
       shared=[]; shopping=[]; chat=[]; chatReads={}; houseRecipes=[]; scores={};
