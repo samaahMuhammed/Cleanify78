@@ -1981,9 +1981,21 @@ img, svg, video { max-width: 100%; }
       if (confirmAct !== "leave-home") { confirmAct = "leave-home"; render(); return; }
       confirmAct = "";
       if (scores && scores[uid]) { delete scores[uid]; saveSharedDB(); }
+      var curLeavingId = activeHomeId();
       var finishLeave = function () {
-        [KEY, DB_SHARED, DB_SHOPPING, DB_SCORES, DB_CHAT, DB_HOUSE_RECIPES, DB_CHATREAD, META_KEY, RELAY_KEY].forEach(function (k) { localStorage.removeItem(k); });
-        location.reload();
+        [DB_SHARED, DB_SHOPPING, DB_SCORES, DB_CHAT, DB_HOUSE_RECIPES, DB_CHATREAD, META_KEY, RELAY_KEY].forEach(function (k) { localStorage.removeItem(k); });
+        /* Remove this home from the homes list */
+        var remaining = loadHomes().filter(function(h){ return h.id !== curLeavingId; });
+        saveHomes(remaining);
+        if (remaining.length > 0) {
+          /* Switch to another existing home instead of showing create screen */
+          flash("Switched to " + (remaining[0].name || "your other home") + ".");
+          switchHome(remaining[0].id);
+        } else {
+          /* No other homes — go to create screen */
+          setActiveHome("");
+          location.reload();
+        }
       };
       if (syncOn()) { clearTimeout(syncTimer); flash("Leaving..."); syncAll(false).then(finishLeave, finishLeave); } else finishLeave();
       return;
