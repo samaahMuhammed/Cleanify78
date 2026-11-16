@@ -354,6 +354,19 @@ ul.todo .title { font-weight: 600; overflow-wrap: anywhere; }
 .meter i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
 hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 100%; }
 
+/* Room code link chip */
+.room-code-link {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-family: var(--mono); font-size: 1rem; font-weight: 600;
+  color: var(--accent); text-decoration: none;
+  background: var(--soft); border: 1.5px solid var(--accent);
+  border-radius: 999px; padding: 0.3rem 0.85rem;
+  cursor: pointer; transition: background 0.12s, opacity 0.12s;
+  letter-spacing: 0.01em;
+}
+.room-code-link::before { content: "🔗"; font-size: 0.85em; }
+.room-code-link:hover { background: var(--accent); color: var(--accent-ink); }
+
 /* ── Bottom sheet ────────────────────────────────────────────────── */
 #profileSheet { position: fixed; inset: 0; z-index: 200; display: none; }
 #profileSheet.open { display: block; }
@@ -1080,17 +1093,46 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
   }
   function inviteLink() { return relay ? location.href.split("#")[0] + "#join=" + relay.id + "." + relay.key + "&db=" + encodeURIComponent(relay.host) : ""; }
   function inviteHash() { try { return (location.hash || "").indexOf("join=") >= 0 ? location.hash.replace(/^#/, "") : ""; } catch (e) { return ""; } }
-  /* Short room code: base64url(relayId + "." + relayKey + "|" + host) prefixed with home slug */
+  /* Room code: a tappable link whose hash carries the full relay payload.
+     Display label: "homename-XXXX" (slug up to 4 alpha chars + 4 random alphanum).
+     Full URL:  https://…/#rc=<base64payload>&label=homename-XXXX
+     Roommate taps the link → browser opens app → parseRoomCode reads the hash. */
   function makeRoomCode(homeName) {
     if (!relay) return "";
     var payload = relay.id + "." + relay.key + "|" + relay.host;
-    var code = btoa(payload).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
-    var slug = (homeName||"HOME").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6);
-    return slug + "-" + code;
+    var b64 = btoa(payload).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+    /* slug: first 4 lowercase letters of home name */
+    var slug = (homeName||"home").toLowerCase().replace(/[^a-z]/g,"").slice(0,4) || "home";
+    /* 4-char random alphanumeric suffix */
+    var chars = "abcdefghjkmnpqrstuvwxyz23456789"; // no ambiguous 0/o/1/l/i
+    var suffix = "";
+    var rnd = new Uint8Array(4);
+    crypto.getRandomValues(rnd);
+    for (var i=0; i<4; i++) suffix += chars[rnd[i] % chars.length];
+    var label = slug + "-" + suffix;
+    return location.href.split("#")[0] + "#rc=" + b64 + "&label=" + label;
+  }
+  function getRoomLabel(url) {
+    /* Extract the display label (e.g. "wally-2xd4") from the full room URL */
+    try { var m = url.match(/[?&]label=([^&]+)/); return m ? m[1] : ""; } catch(e) { return ""; }
   }
   function parseRoomCode(raw) {
     raw = String(raw||"").trim();
-    /* Strip slug prefix if present (SLUG-<base64>) */
+    /* Accept full URL with #rc= hash */
+    var hashRc = raw.match(/[#&]rc=([^&]+)/);
+    if (hashRc) {
+      var b64u = hashRc[1];
+      try {
+        var b64 = b64u.replace(/-/g,"+").replace(/_/g,"/");
+        while (b64.length%4) b64+="=";
+        var payload = atob(b64);
+        var parts = payload.split("|");
+        var idkey = parts[0].split(".");
+        if (idkey.length < 2 || idkey[1].length < 16) return null;
+        return { id: idkey[0], key: idkey.slice(1).join("."), host: parts[1] || DEFAULT_DB };
+      } catch(e) { return null; }
+    }
+    /* Legacy: bare base64 or old SLUG-base64 format */
     var m = raw.match(/^[A-Z0-9]{1,8}-(.+)$/i) || raw.match(/^(.{20,})$/);
     var b64 = m ? m[1] : raw;
     try {
@@ -1126,16 +1168,34 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     } catch (e) { relay = prev; flash(str(e && e.message, 200)); }
   }
   function inviteHtml() {
-    if (relay) return '<p class="small" style="margin-bottom:1.5rem;">Invite roommates: <button class="btn small" data-act="copy-invite">Copy invite link</button></p>';
+    if (relay) {
+      var homes2 = loadHomes().filter(function(h){return h.id===activeHomeId();});
+      var hName2 = homes2.length ? homes2[0].name : "Home";
+      var rc = makeRoomCode(hName2);
+      var label = getRoomLabel(rc) || "share";
+      return '<p class="small" style="margin-bottom:0.75rem;">Invite a roommate — tap the link to copy:</p>' +
+        '<div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:1.5rem;">' +
+          '<a href="' + rc + '" class="room-code-link" data-act="copy-invite" onclick="return false;" title="Tap to copy join link">' + esc(label) + '</a>' +
+          '<span class="small" style="color:var(--muted);">— send this to your roommate</span>' +
+        '</div>';
+    }
     return '<p class="small" style="margin-bottom:1.5rem;">Roommates on other phones can\'t join yet. <button class="btn small" data-act="relay-on">Set up home sync</button></p>';
   }
   function homeSyncCard() {
     if (!(scores && scores._meta)) return "";
     if (relay) {
       var st = syncState.status === "syncing" ? "Syncing…" : syncState.status === "error" ? "Problem: " + syncState.msg : syncState.status === "offline" ? "Offline. It will sync when you are back online." : syncState.last ? "Up to date (checked " + new Date(syncState.last).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + ")" : "Connecting…";
-      return '<section class="card"><h2>Home sync</h2><p class="small">On. Roommates with your invite link stay in step with you. The data is encrypted before it leaves your device.</p>' +
+      var homes3 = loadHomes().filter(function(h){return h.id===activeHomeId();});
+      var hName3 = homes3.length ? homes3[0].name : "Home";
+      var rc3 = makeRoomCode(hName3);
+      var label3 = getRoomLabel(rc3) || "share";
+      return '<section class="card"><h2>Home sync</h2><p class="small">On. Roommates tap your room link to join — the data is encrypted on your device.</p>' +
         '<p class="' + (syncState.status === "error" ? "say" : "small") + '">' + esc(st) + '</p>' +
-        '<div class="row"><button class="btn primary small" data-act="copy-invite">Copy invite link</button><button class="btn quiet small" data-act="sync-now">Sync now</button>' +
+        '<div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.5rem;">' +
+          '<a href="' + rc3 + '" class="room-code-link" data-act="copy-invite" onclick="return false;" title="Tap to copy">' + esc(label3) + '</a>' +
+          '<span class="small">tap to copy</span>' +
+        '</div>' +
+        '<div class="row"><button class="btn quiet small" data-act="sync-now">Sync now</button>' +
         '<button class="btn quiet small" data-act="relay-off">' + (confirmAct === "relay-off" ? "Sure?" : "Turn off") + '</button></div></section>';
     }
     var host = dbUrl();
@@ -2088,7 +2148,11 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
       var hName2 = homes2.length ? homes2[0].name : "Home";
       var rc = makeRoomCode(hName2);
       var shareVal = rc || inviteLink();
-      copyText(shareVal).then(function (ok) { if (ok) flash("Room code copied! Share it with your roommate."); else window.prompt("Share this room code:", shareVal); }); return;
+      var lbl = getRoomLabel(shareVal);
+      copyText(shareVal).then(function (ok) {
+        if (ok) flash("Copied " + (lbl || "link") + " — send it to your roommate!");
+        else window.prompt("Share this link with your roommate:", shareVal);
+      }); return;
     }
     if (act === "db-change") { try { localStorage.removeItem(DB_URL_KEY); } catch (e) {} relayErr = ""; render(); return; }
     if (act === "relay-on") {
@@ -2441,12 +2505,30 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     }
   }
 
+  /* Auto-join when roommate taps a room-code link (#rc=...) */
+  function checkRcHash() {
+    try {
+      var hash = location.hash || "";
+      if (hash.indexOf("rc=") < 0) return;
+      var inv = parseRoomCode(hash);
+      if (!inv) return;
+      var label = "";
+      var lm = hash.match(/[&?]label=([^&]+)/);
+      if (lm) label = decodeURIComponent(lm[1]);
+      if (!uid) { flash("Sign in with Google to join " + (label || "the home") + "."); return; }
+      /* Clear the hash so a reload doesn't re-trigger */
+      history.replaceState(null, "", location.pathname + location.search);
+      flash("Joining " + (label || "home") + "…");
+      joinRelay(inv, me.name || _googleDisplayName || "Roommate");
+    } catch(e) {}
+  }
   window._fbAuth.onAuthStateChanged(function(user) {
     applyUser(user);
     if (!_booted) { _booted = true; startTimers(); }
     _authReady = true;
     render();
     if (uid && syncOn()) syncAll(true);
+    checkRcHash();
   });
 })();
 </script>
