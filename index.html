@@ -2528,10 +2528,18 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     if (!_booted) { _booted = true; startTimers(); }
     _authReady = true;
     if (!user) {
-      /* Signed out — dismiss any open sheet and wipe in-memory state */
+      /* Signed out — close sheet, hide header, wipe all in-memory state */
       closeProfileSheet();
+      var hdr = document.getElementById("mainHeader");
+      if (hdr) hdr.style.display = "none";
+      var dl = document.getElementById("dateLine");
+      if (dl) dl.textContent = "";
+      var ql = document.getElementById("quoteLine");
+      if (ql) ql.textContent = "";
+      var pb = document.getElementById("profileBtn");
+      if (pb) pb.style.display = "none";
       scores = {}; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = {};
-      relay = null;
+      relay = null; me = {}; tab = "me";
     }
     render();
     if (uid && syncOn()) syncAll(true);
