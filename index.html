@@ -2175,6 +2175,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     if (act === "sign-out") {
       window._fbAuth.signOut().then(function() {
         uid = ""; _googleDisplayName = "";
+        closeProfileSheet();
         render();
       }).catch(function(err) { flash("Sign-out failed: " + (err.message||String(err))); });
       return;
