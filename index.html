@@ -423,7 +423,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     <p class="eyebrow" id="dateLine"></p>
     <h1>Just One</h1>
     <p class="lede" id="quoteLine"></p>
-    <button id="profileBtn" class="avatar-mini" data-act="open-profile" aria-label="My profile" title="My profile"></button>
+    <button type="button" id="profileBtn" class="avatar-mini" data-act="open-profile" aria-label="My profile" title="My profile"></button>
   </div>
 </header>
 <main class="wrap" id="app" aria-live="polite"></main>
@@ -431,7 +431,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
   <div id="profileSheetBg" data-act="close-profile-sheet"></div>
   <div id="profileSheetPanel">
     <div style="display:flex;align-items:center;padding:0.5rem 0.75rem 0;">
-      <button data-act="close-profile-sheet" style="background:none;border:none;font-size:1.6rem;color:var(--fg);cursor:pointer;padding:0.2rem 0.5rem;line-height:1;" aria-label="Close">‹</button>
+      <button type="button" data-act="close-profile-sheet" style="background:none;border:none;font-size:1.6rem;color:var(--fg);cursor:pointer;padding:0.2rem 0.5rem;line-height:1;" aria-label="Close">‹</button>
     </div>
     <div id="sheetBody" style="padding:0 0.5rem 0.5rem;"></div>
   </div>
@@ -681,7 +681,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
   function historyCard() {
     var log = (me.doneLog || []).slice().reverse(), n = log.length;
     var head = '<section class="card"><h2>Completed task log</h2><p class="small">Finished personal tasks are filed here so your list stays clean. Nothing is lost.</p>';
-    if (!showHistory) return head + '<button class="btn quiet small" data-act="toggle-history">View log (' + n + ')</button></section>';
+    if (!showHistory) return head + '<button type="button" class="btn quiet small" data-act="toggle-history">View log (' + n + ')</button></section>';
     var shown = historyAll ? log : log.slice(0, 40), html = "", last = "";
     shown.forEach(function (x) {
       if (x.day !== last) { last = x.day; html += '<p class="label" style="margin:0.6rem 0 0.2rem;">' + esc(new Date(x.day + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })) + '</p>'; }
@@ -689,9 +689,9 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     });
     if (!n) html = '<p class="note">Nothing finished yet.</p>';
     return head + html + '<div class="row" style="margin-top:0.6rem;">' +
-      (n > 40 ? '<button class="btn quiet small" data-act="history-all">' + (historyAll ? 'Show fewer' : 'Show all ' + n) + '</button>' : '') +
-      (n ? '<button class="btn quiet small" data-act="history-clear">' + (confirmAct === "history-clear" ? "Sure?" : "Clear log") + '</button>' : '') +
-      '<button class="btn quiet small" data-act="toggle-history">Hide</button></div></section>';
+      (n > 40 ? '<button type="button" class="btn quiet small" data-act="history-all">' + (historyAll ? 'Show fewer' : 'Show all ' + n) + '</button>' : '') +
+      (n ? '<button type="button" class="btn quiet small" data-act="history-clear">' + (confirmAct === "history-clear" ? "Sure?" : "Clear log") + '</button>' : '') +
+      '<button type="button" class="btn quiet small" data-act="toggle-history">Hide</button></div></section>';
   }
   function nameCard() { return '<section class="card"><h2>Your name</h2><p class="small">Roommates see this on the board and in chat.</p>' + nameFormHtml("Save name") + '</section>'; }
   function accountCard() { return ""; } /* merged into profileSettingsCard */
@@ -706,7 +706,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     var curId = activeHomeId();
     var homeBtns = homes.length > 1 ? homes.map(function(h){
       var active = h.id === curId;
-      return '<button class="btn ' + (active?'primary':'quiet') + ' small" ' +
+      return '<button type="button" class="btn ' + (active?'primary':'quiet') + ' small" ' +
         (active ? 'disabled' : 'data-act="switch-home" data-homeid="' + esc(h.id) + '"') + ' style="border-radius:20px;">' +
         esc(h.name||'Home') + (active?' ✓':'') + '</button>';
     }).join('') : '';
@@ -720,7 +720,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
         '<div style="flex:1;min-width:0;">' +
           '<p style="margin:0;font-size:1.1rem;font-weight:700;line-height:1.2;">' + esc(myName()||"Set your name") + '</p>' +
           (email ? '<p style="margin:0.15rem 0 0;font-size:0.8rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(email) + '</p>' : '') +
-          '<button class="btn quiet small" data-act="sign-out" style="margin-top:0.4rem;color:var(--danger);padding:0.2rem 0.6rem;font-size:0.8rem;">Sign out</button>' +
+          '<button type="button" class="btn quiet small" data-act="sign-out" style="margin-top:0.4rem;color:var(--danger);padding:0.2rem 0.6rem;font-size:0.8rem;">Sign out</button>' +
         '</div>' +
       '</div>' +
       /* name edit */
@@ -733,14 +733,14 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
         homes.map(function(h) {
           var active = h.id === curId;
           return '<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem;">' +
-            '<button class="btn ' + (active ? 'primary' : 'quiet') + ' small" style="flex:1;border-radius:20px;text-align:left;" ' +
+            '<button type="button" class="btn ' + (active ? 'primary' : 'quiet') + ' small" style="flex:1;border-radius:20px;text-align:left;" ' +
               (active ? 'disabled' : 'data-act="switch-home" data-homeid="' + esc(h.id) + '"') + '>' +
               (active ? '✓ ' : '') + esc(h.name||'Home') +
             '</button>' +
-            (!active ? '<button class="btn small" data-act="delete-home" data-homeid="' + esc(h.id) + '" style="color:var(--danger,#c0392b);border-color:var(--line);padding:0.3rem 0.6rem;font-size:0.85rem;" title="Remove this home">✕</button>' : '') +
+            (!active ? '<button type="button" class="btn small" data-act="delete-home" data-homeid="' + esc(h.id) + '" style="color:var(--danger,#c0392b);border-color:var(--line);padding:0.3rem 0.6rem;font-size:0.85rem;" title="Remove this home">✕</button>' : '') +
           '</div>';
         }).join('') +
-        '<button class="btn quiet small" data-act="add-home" style="font-size:0.8rem;margin-top:0.2rem;">＋ Add another home</button>' +
+        '<button type="button" class="btn quiet small" data-act="add-home" style="font-size:0.8rem;margin-top:0.2rem;">＋ Add another home</button>' +
       '</div>' : '') +
     '</section>';
   }
@@ -810,14 +810,14 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
   }
   function startTimer(ref, name) { if (timer) stopTimer(true); timer = { ref: ref, name: name, start: Date.now() }; saveJson(TKEY, timer); }
   function timeBtn(ref, name) {
-    if (timer && timer.ref === ref) return '<button class="btn small primary" data-act="time-stop">Stop</button>';
-    return '<button class="btn small quiet" data-act="time-start" data-ref="' + esc(ref) + '" data-name="' + esc(name) + '">Time it</button>';
+    if (timer && timer.ref === ref) return '<button type="button" class="btn small primary" data-act="time-stop">Stop</button>';
+    return '<button type="button" class="btn small quiet" data-act="time-start" data-ref="' + esc(ref) + '" data-name="' + esc(name) + '">Time it</button>';
   }
   function timerBanner() {
     if (!timer) return "";
     return '<div class="timing"><div class="what"><span class="small">Timing</span><br><strong>' + esc(timer.name) + '</strong></div>' +
       '<span class="timer-sm" id="ctimer">' + fmt(Date.now() - timer.start) + '</span>' +
-      '<button class="btn primary" data-act="time-stop">Stop and log</button><button class="btn quiet" data-act="time-discard">Discard</button></div>';
+      '<button type="button" class="btn primary" data-act="time-stop">Stop and log</button><button type="button" class="btn quiet" data-act="time-discard">Discard</button></div>';
   }
 
   /* ---------- scores & rewards ---------- */
@@ -1179,7 +1179,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
           '<span class="small" style="color:var(--muted);">— send this to your roommate</span>' +
         '</div>';
     }
-    return '<p class="small" style="margin-bottom:1.5rem;">Roommates on other phones can\'t join yet. <button class="btn small" data-act="relay-on">Set up home sync</button></p>';
+    return '<p class="small" style="margin-bottom:1.5rem;">Roommates on other phones can\'t join yet. <button type="button" class="btn small" data-act="relay-on">Set up home sync</button></p>';
   }
   function homeSyncCard() {
     if (!(scores && scores._meta)) return "";
@@ -1195,15 +1195,15 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
           '<a href="' + rc3 + '" class="room-code-link" data-act="copy-invite" onclick="return false;" title="Tap to copy">' + esc(label3) + '</a>' +
           '<span class="small">tap to copy</span>' +
         '</div>' +
-        '<div class="row"><button class="btn quiet small" data-act="sync-now">Sync now</button>' +
-        '<button class="btn quiet small" data-act="relay-off">' + (confirmAct === "relay-off" ? "Sure?" : "Turn off") + '</button></div></section>';
+        '<div class="row"><button type="button" class="btn quiet small" data-act="sync-now">Sync now</button>' +
+        '<button type="button" class="btn quiet small" data-act="relay-off">' + (confirmAct === "relay-off" ? "Sure?" : "Turn off") + '</button></div></section>';
     }
     var host = dbUrl();
     var err = relayErr ? '<p class="say">' + esc(relayErr) + '</p>' : '';
     if (host) {
       return '<section class="card"><h2>Home sync</h2><p class="small">Let roommates join from their own phones with a link. No accounts or setup for them. Your home is encrypted before it is uploaded.</p>' + err +
         '<p class="small">Database: <strong>' + esc(host) + '</strong> <button class="btn quiet small" data-act="db-change" type="button">Change</button></p>' +
-        '<button class="btn primary" data-act="relay-on">Turn on home sync</button></section>';
+        '<button type="button" class="btn primary" data-act="relay-on">Turn on home sync</button></section>';
     }
     return '<section class="card"><h2>Home sync: one-time setup</h2>' +
       '<p class="small">This takes about 5 minutes, once, on one device. Roommates never do this.</p>' +
@@ -1315,7 +1315,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
         '<p class="small">Connected to <strong>' + esc(sync.repo) + '</strong></p>' +
         '<p class="' + (syncState.status === "error" ? "say" : "small") + '">' + esc(st) + '</p>' +
         '<p class="small">Your profile ID: <strong>' + esc(uid) + '</strong><br>Type this ID in when you connect your other devices so they are also you. Roommates should keep their own.</p>' +
-        '<div class="row"><button class="btn primary small" data-act="sync-now">Sync now</button><button class="btn quiet small" data-act="sync-off">Disconnect</button></div></section>';
+        '<div class="row"><button type="button" class="btn primary small" data-act="sync-now">Sync now</button><button type="button" class="btn quiet small" data-act="sync-off">Disconnect</button></div></section>';
     }
     var S = ' style="flex:none; width:100%;"';
     return '<section class="card"><h2>Sync with GitHub</h2>' +
@@ -1361,7 +1361,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
       '<h1>Just One</h1>' +
       '<p class="tagline">Clean Home &middot; Clear Mind</p>' +
       '<div class="landing-box">' +
-        '<button class="btn primary large" data-act="google-sign-in" style="display:flex;align-items:center;justify-content:center;gap:0.6rem;">' +
+        '<button type="button" class="btn primary large" data-act="google-sign-in" style="display:flex;align-items:center;justify-content:center;gap:0.6rem;">' +
           '<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>' +
           'Sign in with Google' +
         '</button>' +
@@ -1385,7 +1385,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
   }
   function tabsBar() {
     return '<div class="tabs" role="group" aria-label="Sections">' + [["me", "Me"], ["house", "House"], ["kitchen", "Kitchen"], ["board", "Board"]].map(function (t) {
-      return '<button class="tab" data-act="tab" data-tab="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</button>';
+      return '<button type="button" class="tab" data-act="tab" data-tab="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</button>';
     }).join("") + '</div>';
   }
 
@@ -1401,7 +1401,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
          '<p class="small" style="margin-bottom:0.5rem;">Your Group Code is: <strong>' + esc(me.kitchenGroupId) + '</strong><br>Share this with a roommate to link your kitchens.</p>' +
          '<div class="row">' +
            '<input type="text" id="joinKitchenInput" placeholder="Enter code..." style="text-transform:uppercase; max-width:8rem; flex:1;" maxlength="10">' +
-           '<button class="btn primary small" data-act="join-kitchen">Link</button>' +
+           '<button type="button" class="btn primary small" data-act="join-kitchen">Link</button>' +
          '</div></div>';
     }
 
@@ -1413,7 +1413,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
       resetAlert = '<section class="card banner" style="background:var(--surface); border:2px solid var(--danger); color:var(--ink);">' +
                    '<h3 style="margin:0; color:var(--danger);">House Reset Requested</h3>' +
                    '<p class="small">Someone wants to completely wipe the house tasks and scores. ' + agreedCount + '/' + totalUsers + ' have agreed.</p>' +
-                   (!req.agreed.includes(uid) ? '<button class="btn primary small" data-act="agree-reset">I Agree to Reset</button>' : '<p class="small" style="color:var(--muted);">Waiting for others...</p>') +
+                   (!req.agreed.includes(uid) ? '<button type="button" class="btn primary small" data-act="agree-reset">I Agree to Reset</button>' : '<p class="small" style="color:var(--muted);">Waiting for others...</p>') +
                    '</section>';
     }
     
@@ -1433,7 +1433,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
       '</select></div>' +
       '<button class="btn primary" type="submit">Save Preferences</button></form></section>' +
       
-      timeLogView() + historyCard() + homeSyncCard() + ((sync || showSyncSetup) ? syncCard() : '<section class="card"><h2>Advanced</h2><p class="small">Optional: sync your personal settings between your own devices through GitHub. Not needed for roommates or home sync.</p><button class="btn quiet small" data-act="toggle-sync-setup">Show GitHub sync</button></section>') + '<section class="card"><h2>Food & Diet</h2>' +
+      timeLogView() + historyCard() + homeSyncCard() + ((sync || showSyncSetup) ? syncCard() : '<section class="card"><h2>Advanced</h2><p class="small">Optional: sync your personal settings between your own devices through GitHub. Not needed for roommates or home sync.</p><button type="button" class="btn quiet small" data-act="toggle-sync-setup">Show GitHub sync</button></section>') + '<section class="card"><h2>Food & Diet</h2>' +
       '<p class="small">Tell the app how you eat. Meal ideas and AI suggestions will follow it.</p>' +
       '<form class="add stack" id="dietForm" novalidate>' +
         '<label class="label" for="dietSelect">Dietary preference</label>' +
@@ -1471,8 +1471,8 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
       '</div></section>' + 
       '<section class="card"><h2 style="color:var(--danger);">Danger Zone</h2>' +
       '<div style="display:flex; flex-direction:column; gap:0.5rem;">' +
-      '<button class="btn quiet small" style="color:var(--muted); border:1px solid var(--line);" data-act="request-reset">' + (confirmAct === "request-reset" ? "Tap again to reset everything" : "Request House Reset (Everyone)") + '</button>' +
-      '<button class="btn small" style="color:var(--danger); border-color:var(--danger);" data-act="leave-home">' + (confirmAct === "leave-home" ? "Tap again to leave" : "Leave Home (Just Me)") + '</button>' +
+      '<button type="button" class="btn quiet small" style="color:var(--muted); border:1px solid var(--line);" data-act="request-reset">' + (confirmAct === "request-reset" ? "Tap again to reset everything" : "Request House Reset (Everyone)") + '</button>' +
+      '<button type="button" class="btn small" style="color:var(--danger); border-color:var(--danger);" data-act="leave-home">' + (confirmAct === "leave-home" ? "Tap again to leave" : "Leave Home (Just Me)") + '</button>' +
       '</div></section>';
   }
 
@@ -1507,14 +1507,14 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
       big + '<p class="big" style="margin:0;">' + esc(myName() || "Me") + '</p>' +
       '<div class="row" style="justify-content:center;"><label class="btn small primary" for="photoInput" style="display:inline-flex;align-items:center;">' + (me.photo ? "Change photo" : "Upload photo") + '</label>' +
       '<input id="photoInput" type="file" accept="image/*" hidden>' +
-      (me.photo ? '<button class="btn quiet small" data-act="photo-rm">Remove</button>' : '') + '</div>' +
+      (me.photo ? '<button type="button" class="btn quiet small" data-act="photo-rm">Remove</button>' : '') + '</div>' +
       '<p class="small" style="margin:0;">Your photo is cropped to a circle and shown to roommates on the board.</p></section>';
   }
   function profileCard() {
     return '<section class="card" style="flex-direction:row; align-items:center; gap:1rem; padding:1.2rem;">' +
       '<div class="avatar-wrap">' +
         '<div class="avatar">ME</div>' +
-        '<button class="star-btn" data-act="toggle-stats" title="View Stats & Badges">⭐</button>' +
+        '<button type="button" class="star-btn" data-act="toggle-stats" title="View Stats & Badges">⭐</button>' +
       '</div>' +
       '<div>' +
         '<p class="big" style="margin-bottom:0.2rem;">My Space</p>' +
@@ -1549,7 +1549,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     var unlockedCount = BADGES.filter(function(b){ return b.check(); }).length;
 
     return '<section class="card" id="sheetBadges" style="scroll-margin-top:0.5rem;padding:0;">' +
-      '<button data-act="toggle-badges" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.1rem;background:transparent;border:0;color:var(--ink);font:inherit;cursor:pointer;border-radius:14px;min-height:52px;">' +
+      '<button type="button" data-act="toggle-badges" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.1rem;background:transparent;border:0;color:var(--ink);font:inherit;cursor:pointer;border-radius:14px;min-height:52px;">' +
         '<span style="display:flex;align-items:center;gap:0.6rem;">' +
           '<span style="font-size:1.2rem;">🏅</span>' +
           '<span style="font-weight:600;font-size:0.95rem;">Badges &amp; Stats</span>' +
@@ -1566,9 +1566,9 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
 
   function taskCard(today) {
     var t = todaysTask(today), body;
-    if (me.done[today]) { body = '<p class="big">' + esc(t) + '</p><p class="done-mark">Done. That is plenty for today.</p><div class="row"><button class="btn quiet" data-act="undo">Undo</button></div>'; } 
-    else if (me.skip[today]) { body = '<p class="big">Okay, not today.</p><p class="note">Tomorrow brings a fresh small thing.</p><div class="row"><button class="btn quiet" data-act="unskip">Actually, show it</button></div>'; } 
-    else { body = '<p class="big">' + esc(t) + '</p><p class="note">Takes about two minutes. Worth 1 point.</p><div class="row"><button class="btn primary" data-act="done">I did it</button><button class="btn" data-act="swap">Show another</button><button class="btn quiet" data-act="skip">Not today</button></div>'; }
+    if (me.done[today]) { body = '<p class="big">' + esc(t) + '</p><p class="done-mark">Done. That is plenty for today.</p><div class="row"><button type="button" class="btn quiet" data-act="undo">Undo</button></div>'; } 
+    else if (me.skip[today]) { body = '<p class="big">Okay, not today.</p><p class="note">Tomorrow brings a fresh small thing.</p><div class="row"><button type="button" class="btn quiet" data-act="unskip">Actually, show it</button></div>'; } 
+    else { body = '<p class="big">' + esc(t) + '</p><p class="note">Takes about two minutes. Worth 1 point.</p><div class="row"><button type="button" class="btn primary" data-act="done">I did it</button><button type="button" class="btn" data-act="swap">Show another</button><button type="button" class="btn quiet" data-act="skip">Not today</button></div>'; }
     return '<section class="card" aria-labelledby="h-today"><h2 id="h-today">Today\'s small thing</h2>' + body + '</section>';
   }
 
@@ -1580,23 +1580,23 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
       var d = choreDone(c), st = statLine(c.id, c.text);
       return '<li class="' + (d ? "is-done" : "") + '"><div class="main"><label><input type="checkbox" data-act="chore-toggle" data-id="' + esc(c.id) + '"' + (d ? " checked" : "") + '><span class="t">' + esc(c.text) + '</span></label>' +
         (st ? '<p class="sub">' + esc(st) + '</p>' : "") + '</div><span class="tag">' + esc(repLabel(c.repeat)) + '</span>' + (d ? "" : timeBtn(c.id, c.text)) +
-        '<button class="x" data-act="chore-rm" data-id="' + esc(c.id) + '">&times;</button></li>';
+        '<button type="button" class="x" data-act="chore-rm" data-id="' + esc(c.id) + '">&times;</button></li>';
     }).join("");
     var have = {}; me.chores.forEach(function (c) { have[c.text.toLowerCase()] = 1; });
     var sug = MY_SUGGEST.filter(function (s) { return !have[s.text.toLowerCase()]; }).map(function (s) {
-      return '<button class="chip add" data-act="chore-sug" data-text="' + esc(s.text) + '" data-rep="' + s.rep + '">+ ' + esc(s.text) + '</button>';
+      return '<button type="button" class="chip add" data-act="chore-sug" data-text="' + esc(s.text) + '" data-rep="' + s.rep + '">+ ' + esc(s.text) + '</button>';
     }).join("");
     var list = items ? '<ul class="todo">' + items + '</ul>' : '<p class="note">' + (closed.length ? 'All done for now. 🎉' : 'Nothing yet. Add your own jobs below.') + '</p>';
     if (later.length) {
-      list += '<div class="row"><button class="btn quiet small" data-act="toggle-upcoming">' + (showUpcoming ? 'Hide ' : 'Show ') + later.length + ' scheduled for later days</button></div>';
+      list += '<div class="row"><button type="button" class="btn quiet small" data-act="toggle-upcoming">' + (showUpcoming ? 'Hide ' : 'Show ') + later.length + ' scheduled for later days</button></div>';
       if (showUpcoming) list += '<ul class="todo">' + later.map(function (c) {
         var dopts = DOW_ORDER.map(function (n) { return '<option value="dow:' + n + '"' + (dowOf(c.repeat) === n ? ' selected' : '') + '>' + DOW_NAMES[n] + 's</option>'; }).join("");
         return '<li><div class="main"><span class="t">' + esc(c.text) + '</span><p class="sub">Appears every ' + esc(DOW_NAMES[dowOf(c.repeat)]) + '</p></div>' +
           '<select data-act="chore-day" data-id="' + esc(c.id) + '" aria-label="Change day">' + dopts + '</select>' +
-          '<button class="x" data-act="chore-rm" data-id="' + esc(c.id) + '">&times;</button></li>';
+          '<button type="button" class="x" data-act="chore-rm" data-id="' + esc(c.id) + '">&times;</button></li>';
       }).join("") + '</ul>';
     }
-    if (closed.length) list += '<div class="row"><button class="btn quiet small" data-act="toggle-completed-mine">' + (showCompletedMine ? 'Hide ' : 'Show ') + closed.length + ' completed</button></div>';
+    if (closed.length) list += '<div class="row"><button type="button" class="btn quiet small" data-act="toggle-completed-mine">' + (showCompletedMine ? 'Hide ' : 'Show ') + closed.length + ' completed</button></div>';
     return '<section class="card" aria-labelledby="h-mine"><h2 id="h-mine">My list</h2>' +
       '<p class="small">Private to you. Not part of any leaderboard.</p>' + list +
       '<form class="add" id="choreForm"><input id="choreInput" type="text" placeholder="Water the plant on my desk" autocomplete="off" maxlength="100">' +
@@ -1613,7 +1613,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     openList.forEach(function (c) { var st = timeStats(c.id, c.title); if (st) { minsOpen += st.avg; known++; } });
     var pct = total ? Math.round(doneN / total * 100) : 0;
     
-    var chatBtn = '<button class="btn" data-act="open-chat" style="width:100%; margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center;"><span>💬 Roommate Chat</span>' + (chatUnread() ? '<span class="tag" aria-label="' + chatUnread() + ' unread messages">' + chatUnread() + ' new</span>' : '') + '</button>';
+    var chatBtn = '<button type="button" class="btn" data-act="open-chat" style="width:100%; margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center;"><span>💬 Roommate Chat</span>' + (chatUnread() ? '<span class="tag" aria-label="' + chatUnread() + ' unread messages">' + chatUnread() + ' new</span>' : '') + '</button>';
 
     var progress = '<section class="card" aria-labelledby="h-home"><h2 id="h-home">Home today</h2>' +
       (total ? '<p class="big">' + doneN + ' of ' + total + ' house jobs done</p><div class="meter"><i style="width:' + pct + '%"></i></div><p class="small">' + (doneN === total ? "All clear. The house is reset." : "A few small things keep it from piling up.") + '</p>' : '<p class="note">No house jobs yet.</p>') + '</section>';
@@ -1622,24 +1622,24 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
       var doneToday = c.doneDay === today, status, action;
       if (doneToday) {
         status = '<span class="done-mark">Done today by ' + whoSpan(c.doneBy) + '</span>';
-        action = c.doneBy === uid ? '<button class="btn quiet small" data-act="sh-undo" data-id="' + esc(c.id) + '">Undo</button>' : "";
+        action = c.doneBy === uid ? '<button type="button" class="btn quiet small" data-act="sh-undo" data-id="' + esc(c.id) + '">Undo</button>' : "";
       } else {
         status = c.doneDay ? '<span class="small">Last done ' + esc(c.doneDay) + ' by ' + whoSpan(c.doneBy) + '</span>' : '<span class="small">Not done yet</span>';
-        action = '<button class="btn primary small" data-act="sh-done" data-id="' + esc(c.id) + '">I did it <span class="pts">+' + (c.pts||2) + '</span></button>';
+        action = '<button type="button" class="btn primary small" data-act="sh-done" data-id="' + esc(c.id) + '">I did it <span class="pts">+' + (c.pts||2) + '</span></button>';
       }
-      var rm = pendingRm === c.id ? '<button class="btn small" data-act="sh-rm" data-id="' + esc(c.id) + '">Remove?</button>' : '<button class="x" data-act="sh-rm" data-id="' + esc(c.id) + '">&times;</button>';
+      var rm = pendingRm === c.id ? '<button type="button" class="btn small" data-act="sh-rm" data-id="' + esc(c.id) + '">Remove?</button>' : '<button type="button" class="x" data-act="sh-rm" data-id="' + esc(c.id) + '">&times;</button>';
       return '<li class="' + (doneToday ? "is-done" : "") + '"><div class="main"><span class="title">' + esc(c.title) + '</span>' + status + '</div>' + (doneToday ? "" : timeBtn(c.id, c.title)) + action + rm + '</li>';
     };
 
     var itemsHtml = openList.map(renderItem).join("");
     var toggleBtn = "";
     if (doneList.length > 0) {
-      if (showCompletedHouse) { itemsHtml += doneList.map(renderItem).join(""); toggleBtn = '<div class="row"><button class="btn quiet small" data-act="toggle-completed">Hide ' + doneList.length + ' completed</button></div>'; } 
-      else { toggleBtn = '<div class="row"><button class="btn quiet small" data-act="toggle-completed">Show ' + doneList.length + ' completed</button></div>'; }
+      if (showCompletedHouse) { itemsHtml += doneList.map(renderItem).join(""); toggleBtn = '<div class="row"><button type="button" class="btn quiet small" data-act="toggle-completed">Hide ' + doneList.length + ' completed</button></div>'; } 
+      else { toggleBtn = '<div class="row"><button type="button" class="btn quiet small" data-act="toggle-completed">Show ' + doneList.length + ' completed</button></div>'; }
     }
 
     var have = {}; shared.forEach(function (c) { have[String(c.title).toLowerCase()] = 1; });
-    var sug = HOUSE_SUGGEST.filter(function (s) { return !have[s.text.toLowerCase()]; }).map(function (s) { return '<button class="chip add" data-act="sh-sug" data-text="' + esc(s.text) + '" data-area="' + esc(s.area) + '">+ ' + esc(s.text) + '</button>'; }).join("");
+    var sug = HOUSE_SUGGEST.filter(function (s) { return !have[s.text.toLowerCase()]; }).map(function (s) { return '<button type="button" class="chip add" data-act="sh-sug" data-text="' + esc(s.text) + '" data-area="' + esc(s.area) + '">+ ' + esc(s.text) + '</button>'; }).join("");
     
     return timerBanner() + chatBtn + progress + '<section class="card" aria-labelledby="h-house"><h2 id="h-house">House jobs</h2>' +
       '<p class="small">Shared across this device. Only shared house jobs count toward Monthly Rewards.</p>' +
@@ -1689,9 +1689,9 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
            '<div class="row" style="justify-content:space-between; margin-bottom:0.5rem; align-items:center;">' +
              '<h2 id="h-chat" style="margin:0;">Roommate Chat</h2>' +
              '<div style="display:flex; gap:0.4rem;">' + 
-               '<button class="btn quiet small" data-act="chat-add-task">+ Task</button>' +
-               '<button class="btn quiet small" data-act="chat-clear">' + (confirmAct === "chat-clear" ? "Sure?" : "Clear") + '</button>' +
-               '<button class="btn quiet small" data-act="close-chat">← Back</button>' +
+               '<button type="button" class="btn quiet small" data-act="chat-add-task">+ Task</button>' +
+               '<button type="button" class="btn quiet small" data-act="chat-clear">' + (confirmAct === "chat-clear" ? "Sure?" : "Clear") + '</button>' +
+               '<button type="button" class="btn quiet small" data-act="close-chat">← Back</button>' +
              '</div>' +
            '</div>' +
            '<div id="chatBox" style="flex:1; overflow-y:auto; padding-right:0.5rem; margin-bottom:1rem;">' +
@@ -1716,7 +1716,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
              '<h2>' + monthNames[parseInt(reward.month.split("-")[1], 10)-1] + '\'s Home Hero: ' + winnerText + ' 🎉</h2>' +
              '<p style="margin:0.2rem 0; color:var(--accent-ink);">You earned the Roomie Reward: <strong>' + esc(reward.prize) + '</strong></p>' +
              '<p class="small" style="color:var(--accent-ink); opacity:0.9;">Thank you for helping keep the home moving.<br>Together, your home completed ' + st.totalTasks + ' shared tasks last month.</p>' +
-             '<button class="btn primary" style="background:var(--bg); color:var(--accent); margin-top:1rem;" data-act="ack-reward">Start New Month</button>' +
+             '<button type="button" class="btn primary" style="background:var(--bg); color:var(--accent); margin-top:1rem;" data-act="ack-reward">Start New Month</button>' +
              '</div>';
     }
 
@@ -1738,7 +1738,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
              '<h2 style="color:var(--accent);">Proposed Roomie Reward</h2>' +
              '<p class="small"><strong>Prize:</strong> ' + esc(reward.prize) + '</p>' +
              '<p class="small">Waiting for roommates to agree...</p>' +
-             (iAgreed ? '<p class="small" style="color:var(--ok);">You agreed.</p>' : '<button class="btn primary" data-act="agree-reward">I Agree</button>') +
+             (iAgreed ? '<p class="small" style="color:var(--ok);">You agreed.</p>' : '<button type="button" class="btn primary" data-act="agree-reward">I Agree</button>') +
              '</section>';
     }
 
@@ -1774,7 +1774,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     var lis = rows.map(function (r, i) {
       if (r.displayScore !== prev) { rank = i + 1; prev = r.displayScore; }
       var rankClass = rank === 1 ? "rank-1" : rank === 2 ? "rank-2" : rank === 3 ? "rank-3" : "rank-other";
-      var nameText = esc(r.id === uid ? (myName() ? myName() + " (you)" : "You") : displayName(r.id)) + (r.id === uid ? ' <button class="btn quiet small" data-act="edit-name" style="margin-left:0.4rem;padding:0.1rem 0.5rem;" aria-label="Edit my name">✎ Edit</button>' : "");
+      var nameText = esc(r.id === uid ? (myName() ? myName() + " (you)" : "You") : displayName(r.id)) + (r.id === uid ? ' <button type="button" class="btn quiet small" data-act="edit-name" style="margin-left:0.4rem;padding:0.1rem 0.5rem;" aria-label="Edit my name">✎ Edit</button>' : "");
       var avPhoto = scores && scores[r.id] && scores[r.id].photo ? scores[r.id].photo : "";
       var avText = esc(initials(scores && scores[r.id] && scores[r.id].name ? scores[r.id].name : (r.id === uid ? "Me" : "Roommate")));
       
@@ -1786,7 +1786,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     
     var inviteCode = scores && scores._meta ? scores._meta.inviteCode : "ERROR";
     var filterChips = '<div class="chips" role="group" aria-label="Score category" style="margin-bottom:1rem;">' +
-      '<button class="chip" data-act="bfilter" data-f="house" aria-pressed="' + (boardFilter === "house") + '">House</button>' +
+      '<button type="button" class="chip" data-act="bfilter" data-f="house" aria-pressed="' + (boardFilter === "house") + '">House</button>' +
       '</div>';
 
     html += '<section class="card" aria-labelledby="h-board" style="border:none; background:transparent; padding:0;">' + 
@@ -1807,15 +1807,15 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     var items = open.concat(bought).map(function (s) {
       return '<li class="' + (s.bought ? "is-done" : "") + '"><div class="main"><label><input type="checkbox" data-act="shop-toggle" data-id="' + esc(s.id) + '"' + (s.bought ? " checked" : "") + '><span class="t">' + esc(s.text) + '</span></label>' +
         (s.bought && s.boughtBy ? '<p class="sub">Bought by ' + whoSpan(s.boughtBy) + '</p>' : "") + '</div>' +
-        '<button class="x" data-act="shop-rm" data-id="' + esc(s.id) + '">&times;</button></li>';
+        '<button type="button" class="x" data-act="shop-rm" data-id="' + esc(s.id) + '">&times;</button></li>';
     }).join("");
     
     var have = {}; src.forEach(function (s) { if (!s.bought) have[String(s.text).toLowerCase()] = 1; });
     var sug = SHOP_SUGGEST.filter(function (t) { return !have[t.toLowerCase()]; }).map(function (t) {
-      return '<button class="chip add" data-act="shop-sug" data-text="' + esc(t) + '">+ ' + esc(t) + '</button>';
+      return '<button type="button" class="chip add" data-act="shop-sug" data-text="' + esc(t) + '">+ ' + esc(t) + '</button>';
     }).join("");
     
-    var clear = bought.length ? '<div class="row"><button class="btn quiet" data-act="shop-clear">Clear ' + bought.length + ' bought</button></div>' : "";
+    var clear = bought.length ? '<div class="row"><button type="button" class="btn quiet" data-act="shop-clear">Clear ' + bought.length + ' bought</button></div>' : "";
     var title = "Shopping List";
     var desc = "";
     if (me.kitchenMode === "private") desc = "Completely private to you.";
@@ -1836,12 +1836,12 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     var c = list[cookN % list.length] || COOK[0];
     
     var chips = [["quick", "Quick"], ["breakfast", "Breakfast"], ["lunch", "Lunch"], ["dinner", "Dinner"], ["veg", "Veggie"]].map(function (k) {
-      return '<button class="chip" data-act="cook-kind" data-k="' + k[0] + '" aria-pressed="' + (cookKind === k[0]) + '">' + k[1] + '</button>';
+      return '<button type="button" class="chip" data-act="cook-kind" data-k="' + k[0] + '" aria-pressed="' + (cookKind === k[0]) + '">' + k[1] + '</button>';
     }).join("");
     var idea = nudge.text ? '<p class="say">' + esc(nudge.text) + '</p>' : '<div class="idea"><p class="big">' + esc(c[0]) + '</p><p class="note">' + esc(c[1]) + '. About ' + c[2] + ' min.</p></div>';
-    var ask = '<button class="btn" data-act="ask"' + (nudge.busy ? " disabled" : "") + '>' + (nudge.busy ? "Thinking..." : "Ask " + aiName() + " for a recipe") + '</button>';
+    var ask = '<button type="button" class="btn" data-act="ask"' + (nudge.busy ? " disabled" : "") + '>' + (nudge.busy ? "Thinking..." : "Ask " + aiName() + " for a recipe") + '</button>';
     return '<p class="label">Or pick an idea</p><div class="chips" role="group">' + chips + '</div>' + idea +
-      '<div class="row"><button class="btn" data-act="cook-next">Another idea</button>' + ask + '</div>' + (dietNote() ? '<p class="small">' + esc(dietNote()) + '</p>' : "");
+      '<div class="row"><button type="button" class="btn" data-act="cook-next">Another idea</button>' + ask + '</div>' + (dietNote() ? '<p class="small">' + esc(dietNote()) + '</p>' : "");
   }
 
   function findBlock() {
@@ -1866,7 +1866,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     if (ai.err) html += '<p class="say">' + esc(ai.err) + '</p>';
     if (ai.result) {
       if (ai.result.fromMyRecipes && ai.result.fromMyRecipes.length) html += '<p class="label">AI matched from your recipes</p><div class="found">' + ai.result.fromMyRecipes.map(function (x) { return '<div class="item"><strong>' + esc(x.name) + '</strong><span class="small">' + (x.missing && x.missing.length ? 'Missing: ' + esc(x.missing.join(", ")) : 'You have everything.') + '</span></div>'; }).join("") + '</div>';
-      if (ai.result.ideas && ai.result.ideas.length) html += '<p class="label">New ideas from AI</p><div class="found">' + ai.result.ideas.map(function (x, i) { return '<div class="item"><strong>' + esc(x.name) + '</strong><span class="small">' + esc((x.ingredients||[]).join(", ")) + '</span><p class="notes">' + esc(x.method) + '</p><div class="row"><button class="btn small" data-act="ai-save" data-i="' + i + '"' + (x.saved ? " disabled" : "") + '>' + (x.saved ? "Saved" : "Save recipe") + '</button><button class="btn small quiet" data-act="ai-shop" data-i="' + i + '">Add to shopping list</button></div></div>'; }).join("") + '</div>';
+      if (ai.result.ideas && ai.result.ideas.length) html += '<p class="label">New ideas from AI</p><div class="found">' + ai.result.ideas.map(function (x, i) { return '<div class="item"><strong>' + esc(x.name) + '</strong><span class="small">' + esc((x.ingredients||[]).join(", ")) + '</span><p class="notes">' + esc(x.method) + '</p><div class="row"><button type="button" class="btn small" data-act="ai-save" data-i="' + i + '"' + (x.saved ? " disabled" : "") + '>' + (x.saved ? "Saved" : "Save recipe") + '</button><button type="button" class="btn small quiet" data-act="ai-shop" data-i="' + i + '">Add to shopping list</button></div></div>'; }).join("") + '</div>';
     }
     return html;
   }
@@ -1888,9 +1888,9 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
           (ings.length ? '<p class="label">Ingredients</p><ul class="ing">' + ings.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join("") + '</ul>' : "") +
           (r.notes ? '<p class="label">Method</p><p class="notes">' + esc(r.notes) + '</p>' : "") +
           '<div class="row">' +
-            '<button class="btn small primary" data-act="recipe-shop" data-id="' + esc(r.id) + '">Add to list</button>' +
-            '<button class="btn small" data-act="recipe-share" data-id="' + esc(r.id) + '">Share to chat</button>' +
-            '<button class="btn small quiet" data-act="recipe-rm" data-id="' + esc(r.id) + '">' + (confirmAct === "rm:" + r.id ? "Tap again to delete" : "Delete") + '</button>' +
+            '<button type="button" class="btn small primary" data-act="recipe-shop" data-id="' + esc(r.id) + '">Add to list</button>' +
+            '<button type="button" class="btn small" data-act="recipe-share" data-id="' + esc(r.id) + '">Share to chat</button>' +
+            '<button type="button" class="btn small quiet" data-act="recipe-rm" data-id="' + esc(r.id) + '">' + (confirmAct === "rm:" + r.id ? "Tap again to delete" : "Delete") + '</button>' +
           '</div></div>';
       }
       return '<li>' + head + body + '</li>';
@@ -1912,12 +1912,12 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     var today = dayKey(new Date());
     var s = session, body;
     if (s) {
-      body = '<p class="timer" id="timer">' + fmt(Date.now() - s.start) + '</p><div class="row" style="margin-top:1rem;"><button class="btn primary" data-act="leave">Finish & Log Time</button></div>';
+      body = '<p class="timer" id="timer">' + fmt(Date.now() - s.start) + '</p><div class="row" style="margin-top:1rem;"><button type="button" class="btn primary" data-act="leave">Finish & Log Time</button></div>';
     } else {
       var mins = 0, count = 0; me.visits.forEach(function (v) { if (v.day === today) { mins += v.mins; count++; } });
       var summary = count ? "Today: " + count + " visits, " + mins + " min in the kitchen." : "No kitchen time logged today.";
       var last = ""; if (me.last) { last = ' Last visit: ' + me.last.mins + ' min.'; }
-      body = '<p class="note">' + summary + last + '</p><div class="row" style="margin-top:1rem;"><button class="btn" data-act="enter">Start my kitchen timer</button></div>';
+      body = '<p class="note">' + summary + last + '</p><div class="row" style="margin-top:1rem;"><button type="button" class="btn" data-act="enter">Start my kitchen timer</button></div>';
     }
     
     var html = '<section class="card" aria-labelledby="h-kitchen"><h2 id="h-kitchen">In the kitchen</h2>' + body + '</section>' +
