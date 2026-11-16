@@ -2540,7 +2540,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
       var pb = document.getElementById("profileBtn");
       if (pb) pb.style.display = "none";
       scores = {}; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = {};
-      relay = null; me = {}; tab = "me";
+      relay = null; me = blankMe(); tab = "me";
     } else {
       /* Signed in — reload home data from localStorage so returning users land on their home */
       var aid = activeHomeId();
@@ -2550,7 +2550,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
         houseRecipes = getArr(homeKey(DB_HOUSE_RECIPES)); scores = loadJson(homeKey(DB_SCORES))||{};
         relay = loadJson(RELAY_KEY); if (relay && !relay.host) relay = null;
       }
-      me = loadJson(meKey()) || {};
+      me = localLoadMe();
     }
     render();
     if (uid && syncOn()) syncAll(true);
