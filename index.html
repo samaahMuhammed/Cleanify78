@@ -574,7 +574,8 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
 
   function blankMe() { return { visits: [], done: {}, skip: {}, swap: {}, last: null, chores: [], timeLog: [], doneLog: [], name: "", photo: "", theme: "dark", kitchenMode: "house", kitchenGroupId: "", diet: { pref: "none", notes: "" } }; }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
-  function rawLocal() { try { var r = localStorage.getItem(KEY); if (r) return JSON.parse(r); } catch (e) {} return null; }
+  function meKey() { return uid ? KEY + "__" + uid : KEY; }
+  function rawLocal() { try { var r = localStorage.getItem(meKey()); if (r) return JSON.parse(r); } catch (e) {} return null; }
   
   function localLoadMe() { 
     var s = rawLocal(), m = blankMe(); 
@@ -637,7 +638,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     if (me.timeLog.length > 300) me.timeLog = me.timeLog.slice(-300);
     var cutoff = dayKey(new Date(Date.now() - 60 * 864e5));
     [me.done, me.skip, me.swap].forEach(function (o) { Object.keys(o).forEach(function (k) { if (k < cutoff) delete o[k]; }); });
-    saveJson(KEY, me); scheduleSync();
+    saveJson(meKey(), me); scheduleSync();
   }
   
   function persistShared() {
@@ -937,7 +938,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
       shared = d.shared; shopping = d.shopping; chat = d.chat; houseRecipes = d.houseRecipes; scores = d.scores; chatReads = d.chatReads;
       persistShared();
     } else {
-      me = normalizeMe(d); saveJson(KEY, me); applyTheme();
+      me = normalizeMe(d); saveJson(meKey(), me); applyTheme();
     }
   }
   function saveMeta() { saveJson(META_KEY, syncMeta); }
@@ -2549,7 +2550,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
         houseRecipes = getArr(homeKey(DB_HOUSE_RECIPES)); scores = loadJson(homeKey(DB_SCORES))||{};
         relay = loadJson(RELAY_KEY); if (relay && !relay.host) relay = null;
       }
-      me = loadJson(KEY) || {};
+      me = loadJson(meKey()) || {};
     }
     render();
     if (uid && syncOn()) syncAll(true);
