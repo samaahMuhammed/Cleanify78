@@ -2527,6 +2527,12 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
     applyUser(user);
     if (!_booted) { _booted = true; startTimers(); }
     _authReady = true;
+    if (!user) {
+      /* Signed out — dismiss any open sheet and wipe in-memory state */
+      closeProfileSheet();
+      scores = {}; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = {};
+      relay = null;
+    }
     render();
     if (uid && syncOn()) syncAll(true);
     checkRcHash();
