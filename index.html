@@ -2540,6 +2540,16 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; width: 
       if (pb) pb.style.display = "none";
       scores = {}; shared = []; shopping = []; chat = []; chatReads = {}; houseRecipes = {};
       relay = null; me = {}; tab = "me";
+    } else {
+      /* Signed in — reload home data from localStorage so returning users land on their home */
+      var aid = activeHomeId();
+      if (aid) {
+        shared = getArr(homeKey(DB_SHARED)); shopping = getArr(homeKey(DB_SHOPPING));
+        chat = getArr(homeKey(DB_CHAT)); chatReads = loadJson(homeKey(DB_CHATREAD))||{};
+        houseRecipes = getArr(homeKey(DB_HOUSE_RECIPES)); scores = loadJson(homeKey(DB_SCORES))||{};
+        relay = loadJson(RELAY_KEY); if (relay && !relay.host) relay = null;
+      }
+      me = loadJson(KEY) || {};
     }
     render();
     if (uid && syncOn()) syncAll(true);
